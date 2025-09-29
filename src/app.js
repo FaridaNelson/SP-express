@@ -18,7 +18,9 @@ app.use(
     credentials: true,
   })
 );
-app.use(helmet());
+app.use(
+  helmet({ referrerPolicy: { policy: "strict-origin-when-cross-origin" } })
+);
 app.use(morgan("dev"));
 app.use(express.json());
 app.use(cookieParser());
