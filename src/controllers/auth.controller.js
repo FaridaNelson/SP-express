@@ -8,7 +8,7 @@ const SECRET = process.env.JWT_SECRET || "dev_secret_change_me";
 
 function setSessionCookie(res, user) {
   const token = jwt.sign(
-    { sub: user._id.toString(), name: user.name },
+    { sub: user._id.toString(), name: user.name, role: user.role },
     SECRET,
     { expiresIn: `${DAYS}d` }
   );
@@ -23,24 +23,42 @@ function setSessionCookie(res, user) {
 
 export async function signup(req, res, next) {
   try {
-    const { name, email, password } = req.body || {};
-    if (!name || !email || !password)
+    const { name, email, password, role, studentId } = req.body || {};
+    if (!name || !email || !password) {
       return res.status(400).json({ error: "Missing fields" });
+    }
+    if (role && !["student", "teacher", "parent"].includes(role)) {
+      return res.status(400).json({ error: "Invalid role" });
+    }
 
-    const exists = await User.findOne({ email });
-    if (exists)
-      return res.status(409).json({ error: "Email already registered" });
+    const existing = await User.findOne({ email });
+    if (existing) {
+      return res.status(400).json({ error: "Email already registered" });
+    }
 
     const passwordHash = await bcrypt.hash(password, 12);
-    const user = await User.create({ name, email, passwordHash });
+    const doc = await User.create({
+      name,
+      email,
+      passwordHash,
+      role: role || "student",
+      studentId: role === "parent" ? studentId || null : null,
+    });
 
-    setSessionCookie(res, user);
-    res
-      .status(201)
-      .json({ user: { _id: user._id, name: user.name, email: user.email } });
+    setSessionCookie(res, doc);
+    return res.status(201).json({
+      user: {
+        _id: doc._id,
+        name: doc.name,
+        email: doc.email,
+        role: doc.role,
+        studentId: doc.studentId ?? null,
+      },
+    });
   } catch (err) {
-    if (err?.code === 11000)
+    if (err?.code === 11000) {
       return res.status(409).json({ error: "Email already registered" });
+    }
     next(err);
   }
 }
@@ -48,34 +66,50 @@ export async function signup(req, res, next) {
 export async function login(req, res, next) {
   try {
     const { email, password } = req.body || {};
-    if (!email || !password)
+    if (!email || !password) {
       return res.status(400).json({ error: "Missing fields" });
+    }
 
     const user = await User.findOne({ email });
     if (!user) return res.status(401).json({ error: "Invalid credentials" });
 
-    const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) return res.status(401).json({ error: "Invalid credentials" });
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) return res.status(401).json({ error: "Invalid credentials" });
 
     setSessionCookie(res, user);
-    res.json({ user: { _id: user._id, name: user.name, email: user.email } });
+    return res.json({
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        studentId: user.studentId ?? null,
+      },
+    });
   } catch (err) {
     next(err);
   }
 }
 
 export async function me(req, res) {
-  const u = req.user || null;
-  if (!u) return res.json({ user: null });
-  res.json({ user: { _id: u._id, name: u.name, email: u.email } });
+  if (!req.user) return res.json({ user: null });
+
+  const user = await User.findById(req.user._id);
+  if (!user) return res.json({ user: null });
+
+  return res.json({
+    user: {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      studentId: user.studentId ?? null,
+    },
+  });
 }
 
 export async function logout(_req, res) {
   const prod = process.env.NODE_ENV === "production";
-  res.clearCookie(COOKIE, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: prod,
-  });
+  res.clearCookie(COOKIE, { httpOnly: true, sameSite: "lax", secure: prod });
   res.json({ ok: true });
 }

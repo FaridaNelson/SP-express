@@ -7,14 +7,16 @@ import cookieParser from "cookie-parser";
 
 import { connectDB } from "./db.js";
 import authRoutes from "./routes/auth.routes.js";
+import teacherRoutes from "./routes/teacher.routes.js";
+import parentRoutes from "./routes/parent.routes.js";
 import soundsliceRoutes from "./routes/soundslice.routes.js";
-import { errorHandler } from "./middleware/error.js";
+import { notFoundHandler, errorHandler } from "./middleware/error.js";
 
 const app = express();
 
 app.use(
   cors({
-    origin: process.env.CLIENT_ORIGIN || "http://localhost:3000",
+    origin: ["http://localhost:3000"],
     credentials: true,
   })
 );
@@ -27,14 +29,12 @@ app.use(cookieParser());
 
 app.get("/healthz", (_req, res) => res.send("ok"));
 
-console.log("Mounting /api/auth ...");
 app.use("/api/auth", authRoutes);
-
+app.use("/api/teacher", teacherRoutes);
+app.use("/api/parent", parentRoutes);
 app.use("/api/soundslice", soundsliceRoutes);
 
-app.use((req, res) => {
-  res.status(404).json({ error: "Not Found", path: req.originalUrl });
-});
+app.use(notFoundHandler);
 
 app.use(errorHandler);
 
