@@ -2,7 +2,7 @@
   "name": "sp-express",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "src/app.js",
   "type": "module",
   "scripts": {
     "dev": "nodemon src/app.js",
@@ -21,7 +21,8 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.18.2",
-    "morgan": "^1.10.1"
+    "morgan": "^1.10.1",
+    "pg-promise": "^12.2.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"

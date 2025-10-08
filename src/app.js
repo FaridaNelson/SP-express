@@ -7,35 +7,49 @@ import cookieParser from "cookie-parser";
 
 import { connectDB } from "./db.js";
 import authRoutes from "./routes/auth.routes.js";
+import teacherRoutes from "./routes/teacher.routes.js";
+import parentRoutes from "./routes/parent.routes.js";
 import soundsliceRoutes from "./routes/soundslice.routes.js";
-import { errorHandler } from "./middleware/error.js";
+import { notFoundHandler, errorHandler } from "./middleware/error.js";
 
 const app = express();
 
 app.use(
   cors({
-    origin: process.env.CLIENT_ORIGIN || "http://localhost:3000",
+    origin: ["http://localhost:5173", "http://localhost:3000"],
     credentials: true,
   })
 );
-app.use(helmet());
+app.use(
+  helmet({ referrerPolicy: { policy: "strict-origin-when-cross-origin" } })
+);
 app.use(morgan("dev"));
-app.use(express.json());
 app.use(cookieParser());
+app.use(express.json());
 
+app.get("/api/health", (_req, res) => {
+  res.json({ ok: true, uptime: process.uptime() });
+});
+// delete later, after checking the existance of the correct file.
 app.get("/healthz", (_req, res) => res.send("ok"));
 
-console.log("Mounting /api/auth ...");
 app.use("/api/auth", authRoutes);
-
+app.use("/api/teacher", teacherRoutes);
+app.use("/api/parent", parentRoutes);
 app.use("/api/soundslice", soundsliceRoutes);
 
-app.use((req, res) => {
-  res.status(404).json({ error: "Not Found", path: req.originalUrl });
-});
+app.use(notFoundHandler);
 
 app.use(errorHandler);
 
-await connectDB();
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => console.log(`API listening on :${PORT}`));
+try {
+  await connectDB();
+  const PORT = process.env.PORT || 4000;
+  const HOST = "0.0.0.0"; // Listen on all interfaces
+
+  app.listen(PORT, HOST, () => console.log(`API listening on ${HOST}:${PORT}`));
+} catch (err) {
+  console.error("DB connect failed:", err);
+  process.exit(1);
+}
+export default app;
