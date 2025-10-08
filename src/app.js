@@ -30,6 +30,8 @@ app.use(express.json());
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, uptime: process.uptime() });
 });
+// delete later, after checking the existance of the correct file.
+app.get("/healthz", (_req, res) => res.send("ok"));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/teacher", teacherRoutes);
