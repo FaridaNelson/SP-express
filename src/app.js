@@ -16,7 +16,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: ["http://localhost:3000"],
+    origin: ["http://localhost:5173", "http://localhost:3000"],
     credentials: true,
   })
 );
@@ -24,10 +24,12 @@ app.use(
   helmet({ referrerPolicy: { policy: "strict-origin-when-cross-origin" } })
 );
 app.use(morgan("dev"));
-app.use(express.json());
 app.use(cookieParser());
+app.use(express.json());
 
-app.get("/healthz", (_req, res) => res.send("ok"));
+app.get("/api/health", (_req, res) => {
+  res.json({ ok: true, uptime: process.uptime() });
+});
 
 app.use("/api/auth", authRoutes);
 app.use("/api/teacher", teacherRoutes);
@@ -38,6 +40,14 @@ app.use(notFoundHandler);
 
 app.use(errorHandler);
 
-await connectDB();
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => console.log(`API listening on :${PORT}`));
+try {
+  await connectDB();
+  const PORT = process.env.PORT || 4000;
+  const HOST = "0.0.0.0"; // Listen on all interfaces
+
+  app.listen(PORT, HOST, () => console.log(`API listening on ${HOST}:${PORT}`));
+} catch (err) {
+  console.error("DB connect failed:", err);
+  process.exit(1);
+}
+export default app;
