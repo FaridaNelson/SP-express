@@ -21,19 +21,16 @@ const studentSchema = new mongoose.Schema(
       type: String,
       unique: true,
       index: true,
-      default: () => crypto.randomBytes(4).toString("hex").toUpperCase(), // 8 characters
+      default: () => crypto.randomBytes(4).toString("hex").toUpperCase(),
     },
-    progressItems: {
-      type: [
-        {
-          id: String,
-          label: String,
-          weight: Number,
-          score: Number,
-        },
-      ],
-      default: undefined,
-    },
+    progressItems: [
+      {
+        id: String,
+        label: String,
+        weight: Number,
+        score: Number,
+      },
+    ],
   },
   { timestamps: true }
 );
