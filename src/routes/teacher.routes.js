@@ -82,4 +82,31 @@ r.post(
   }
 );
 
+r.post(
+  "/students",
+  requireAuth,
+  requireRole("teacher", "admin"),
+  async (req, res, next) => {
+    try {
+      const { name, email, instrument, grade, parent } = req.body || {};
+      if (!name) return res.status(400).json({ error: "Name is required" });
+
+      const teacherId = req.user?.sub || req.user?._id;
+
+      const doc = await Student.create({
+        name,
+        email,
+        instrument,
+        grade,
+        parent,
+        teacherId,
+      });
+
+      return res.status(201).json({ student: doc });
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
 export default r;
