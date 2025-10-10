@@ -14,12 +14,11 @@ import { notFoundHandler, errorHandler } from "./middleware/error.js";
 
 const app = express();
 
-// CORS
+// --------------------
+// ✅ CORS (Express 5 compatible)
+// --------------------
 const prodOrigins = ["https://studiopulse.co", "https://www.studiopulse.co"];
-
-// allow localhost in dev if needed
-const devOrigins = ["http://localhost:5173", "http://localhost:3000"];
-
+const devOrigins = ["http://localhost:5173", "http://127.0.0.1:5173"];
 const allowedOrigins =
   process.env.NODE_ENV === "production"
     ? prodOrigins
@@ -27,39 +26,41 @@ const allowedOrigins =
 
 const corsOptions = {
   origin(origin, callback) {
-    // allow same-origin / non-browser requests
     if (!origin) return callback(null, true);
-    return callback(null, allowedOrigins.includes(origin));
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, origin);
+    }
+    console.warn("Blocked by CORS:", origin);
+    return callback(new Error("CORS: Origin not allowed"), false);
   },
   credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   exposedHeaders: ["Content-Length", "ETag"],
   optionsSuccessStatus: 204,
 };
-
 app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
+app.options("/*", cors(corsOptions));
 
-// Parsing
+// --------------------
+// Parsing & security
+// --------------------
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
-
-// Security & logging
-// behind nginx/proxy
 app.set("trust proxy", 1);
-
-// helmet: keep defaults + referrer policy
 app.use(
   helmet({ referrerPolicy: { policy: "strict-origin-when-cross-origin" } })
 );
 app.use(morgan("dev"));
 
-// Health checks
-app.get("/", (_req, res) => {
-  res.status(200).json({ ok: true, service: "StudioPulse API", root: true });
-});
+// --------------------
+// Health routes
+// --------------------
+app.get("/", (_req, res) =>
+  res.status(200).json({ ok: true, service: "StudioPulse API", root: true })
+);
 
 app.get("/api/health", (_req, res) => {
   res.status(200).json({
@@ -71,17 +72,23 @@ app.get("/api/health", (_req, res) => {
 
 app.get("/healthz", (_req, res) => res.send("ok"));
 
-// Routes
+// --------------------
+// Main routes
+// --------------------
 app.use("/api/auth", authRoutes);
 app.use("/api/teacher", teacherRoutes);
 app.use("/api/parent", parentRoutes);
 app.use("/api/soundslice", soundsliceRoutes);
 
-// Errors
+// --------------------
+// Error handling
+// --------------------
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-// Boot
+// --------------------
+// Server boot
+// --------------------
 try {
   await connectDB();
   const PORT = process.env.PORT || 4000;
