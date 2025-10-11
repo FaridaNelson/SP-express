@@ -14,9 +14,8 @@ import { notFoundHandler, errorHandler } from "./middleware/error.js";
 
 const app = express();
 
-// --------------------
-// ✅ CORS (Express 5 compatible)
-// --------------------
+// CORS (Express 5 compatible)
+
 const prodOrigins = ["https://studiopulse.co", "https://www.studiopulse.co"];
 const devOrigins = ["http://localhost:5173", "http://127.0.0.1:5173"];
 const allowedOrigins =
@@ -29,7 +28,7 @@ const corsOptions = {
     if (!origin) return callback(null, true);
 
     if (allowedOrigins.includes(origin)) {
-      return callback(null, origin);
+      return callback(null, true);
     }
     console.warn("Blocked by CORS:", origin);
     return callback(new Error("CORS: Origin not allowed"), false);
@@ -41,11 +40,8 @@ const corsOptions = {
   optionsSuccessStatus: 204,
 };
 app.use(cors(corsOptions));
-app.options("/*", cors(corsOptions));
 
-// --------------------
 // Parsing & security
-// --------------------
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
@@ -55,9 +51,7 @@ app.use(
 );
 app.use(morgan("dev"));
 
-// --------------------
 // Health routes
-// --------------------
 app.get("/", (_req, res) =>
   res.status(200).json({ ok: true, service: "StudioPulse API", root: true })
 );
@@ -72,23 +66,17 @@ app.get("/api/health", (_req, res) => {
 
 app.get("/healthz", (_req, res) => res.send("ok"));
 
-// --------------------
 // Main routes
-// --------------------
 app.use("/api/auth", authRoutes);
 app.use("/api/teacher", teacherRoutes);
 app.use("/api/parent", parentRoutes);
 app.use("/api/soundslice", soundsliceRoutes);
 
-// --------------------
 // Error handling
-// --------------------
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-// --------------------
 // Server boot
-// --------------------
 try {
   await connectDB();
   const PORT = process.env.PORT || 4000;
