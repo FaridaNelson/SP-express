@@ -39,7 +39,9 @@ const corsOptions = {
   exposedHeaders: ["Content-Length", "ETag"],
   optionsSuccessStatus: 204,
 };
-app.use(cors(corsOptions));
+// Nginx handles CORS now:
+// app.use(cors(corsOptions));
+
 app.options("*", cors(corsOptions));
 
 // Parsing & security
