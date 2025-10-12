@@ -23,26 +23,17 @@ const allowedOrigins =
     ? prodOrigins
     : [...prodOrigins, ...devOrigins];
 
-const corsOptions = {
-  origin(origin, callback) {
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    console.warn("Blocked by CORS:", origin);
-    return callback(new Error("CORS: Origin not allowed"), false);
-  },
-  credentials: true,
-  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  exposedHeaders: ["Content-Length", "ETag"],
-  optionsSuccessStatus: 204,
-};
-
-if (process.env.NODE_ENV !== "production") {
-  app.use(cors({ origin: true, credentials: true }));
-}
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like curl or mobile apps)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error("CORS: Origin not allowed"));
+    },
+    credentials: true,
+  })
+);
 
 // Parsing & security
 app.use(express.json({ limit: "10mb" }));
