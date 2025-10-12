@@ -39,9 +39,10 @@ const corsOptions = {
   exposedHeaders: ["Content-Length", "ETag"],
   optionsSuccessStatus: 204,
 };
-// Nginx handles CORS now:
-// app.use(cors(corsOptions));
-// app.options("*", cors(corsOptions));
+
+if (process.env.NODE_ENV !== "production") {
+  app.use(cors({ origin: true, credentials: true }));
+}
 
 // Parsing & security
 app.use(express.json({ limit: "10mb" }));
