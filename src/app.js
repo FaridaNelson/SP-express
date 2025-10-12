@@ -16,31 +16,24 @@ const app = express();
 
 // CORS (Express 5 compatible)
 
-const prodOrigins = ["https://studiopulse.co", "https://www.studiopulse.co"];
-const devOrigins = ["http://localhost:5173", "http://127.0.0.1:5173"];
-const allowedOrigins =
-  process.env.NODE_ENV === "production"
-    ? prodOrigins
-    : [...prodOrigins, ...devOrigins];
+const allowedOrigins = [
+  "https://studiopulse.co",
+  "https://www.studiopulse.co",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+];
 
-const corsOptions = {
-  origin(origin, callback) {
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    console.warn("Blocked by CORS:", origin);
-    return callback(new Error("CORS: Origin not allowed"), false);
-  },
-  credentials: true,
-  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  exposedHeaders: ["Content-Length", "ETag"],
-  optionsSuccessStatus: 204,
-};
-app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, origin);
+      console.warn("Blocked by CORS:", origin);
+      return callback(new Error("CORS: Origin not allowed"));
+    },
+    credentials: true,
+  })
+);
 
 // Parsing & security
 app.use(express.json({ limit: "10mb" }));
