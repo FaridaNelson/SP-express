@@ -41,8 +41,7 @@ const corsOptions = {
 };
 // Nginx handles CORS now:
 // app.use(cors(corsOptions));
-
-app.options("*", cors(corsOptions));
+// app.options("*", cors(corsOptions));
 
 // Parsing & security
 app.use(express.json({ limit: "10mb" }));
