@@ -15,7 +15,7 @@ function setSessionCookie(res, user) {
   const prod = process.env.NODE_ENV === "production";
   res.cookie(COOKIE, token, {
     httpOnly: true,
-    sameSite: prod ? "none" : "lax",
+    sameSite: "none",
     secure: prod,
     domain: prod ? ".studiopulse.co" : undefined,
     maxAge: DAYS * 24 * 60 * 60 * 1000,
