@@ -34,7 +34,7 @@ app.use(
       return callback(new Error("CORS: Origin not allowed"), false);
     },
     credentials: true,
-    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
@@ -74,12 +74,18 @@ app.use("/api/soundslice", soundsliceRoutes);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-// Server boot
 try {
+  console.log("Starting StudioPulse API server...");
+  console.log("Environment:", process.env.NODE_ENV);
+  console.log("PORT from .env or default:", process.env.PORT || 4000);
+
   await connectDB();
   const PORT = process.env.PORT || 4000;
   const HOST = "0.0.0.0";
-  app.listen(PORT, HOST, () => console.log(`API listening on ${HOST}:${PORT}`));
+
+  app.listen(PORT, HOST, () => {
+    console.log(`API listening on ${HOST}:${PORT}`);
+  });
 } catch (err) {
   console.error("DB connect failed:", err);
   process.exit(1);
