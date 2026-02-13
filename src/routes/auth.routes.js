@@ -14,7 +14,7 @@ const COOKIE = "sp_jwt";
 const cookieOpts = {
   httpOnly: true,
   sameSite: "lax",
-  secure: false, // true in prod behind HTTPS
+  secure: process.env.NODE_ENV === "production",
   maxAge: 7 * 24 * 60 * 60 * 1000,
 };
 
@@ -27,13 +27,13 @@ function signFor(user) {
       roles: Array.isArray(user.roles)
         ? user.roles
         : user.role
-        ? [user.role]
-        : [],
+          ? [user.role]
+          : [],
       email: user.email,
       name: user.name,
     },
     SECRET,
-    { expiresIn: "7d" }
+    { expiresIn: "7d" },
   );
 }
 
@@ -111,7 +111,7 @@ r.post("/login", async (req, res, next) => {
       return res.status(400).json({ error: "Email and password are required" });
 
     const user = await User.findOne({ email }).select(
-      "+passwordHash role roles name email studentId"
+      "+passwordHash role roles name email studentId",
     );
     if (!user) return res.status(401).json({ error: "Invalid credentials" });
 
@@ -135,11 +135,14 @@ r.post("/login", async (req, res, next) => {
   }
 });
 
-r.get("/me", requireAuth, async (req, res) => {
+r.get("/me", optionalAuth, async (req, res) => {
+  if (!req.user?.sub) return res.json({ user: null });
+
   const user = await User.findById(req.user.sub)
     .select("_id name email role roles studentId")
     .lean();
-  res.json({ user });
+
+  res.json({ user: user ?? null });
 });
 
 r.post("/logout", (_req, res) => {
