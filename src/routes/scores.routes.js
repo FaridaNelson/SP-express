@@ -11,9 +11,13 @@ router.post(
   requireAuth,
   async (req, res, next) => {
     try {
-      const teacherId = req.user.id;
+      const teacherId = (req.user?.sub || req.user?._id || "").toString();
       const { studentId } = req.params;
-      const { itemId, itemLabel, value, note } = req.body;
+
+      const { entries } = req.body || {};
+      if (!Array.isArray(entries) || entries.length === 0) {
+        return res.status(400).json({ message: "entries[] required" });
+      }
 
       // 1) make sure student belongs to this teacher
       const student = await Student.findOne({ _id: studentId, teacherId });
@@ -24,18 +28,27 @@ router.post(
       const entry = await ScoreEntry.create({
         teacherId,
         studentId,
-        itemId,
-        itemLabel,
-        value,
-        note,
+        itemId: e.elementId ?? e.itemId,
+        itemLabel: e.elementLabel ?? e.itemLabel,
+        value: e.score ?? e.value,
+        note: e.note,
+
+        //extra fields for more detailed feedback:
+        lessonDate: e.lessonDate,
+        tempoCurrent: e.tempoCurrent,
+        tempoGoal: e.tempoGoal,
+        dynamics: e.dynamics,
+        articulation: e.articulation,
       });
 
+      const created = await ScoreEntry.insertMany(docs);
       // 3) OPTIONAL: also update the Student.progressItems score “current value”
       // If your UI expects progressItems.score to change:
-      if (itemId) {
+      for (const d of docs) {
+        if (!d.itemId || d.value == null) continue;
         await Student.updateOne(
-          { _id: studentId, teacherId, "progressItems.id": itemId },
-          { $set: { "progressItems.$.score": value } },
+          { _id: studentId, teacherId, "progressItems.id": d.itemId },
+          { $set: { "progressItems.$.score": d.value } },
         );
       }
 
@@ -52,7 +65,7 @@ router.get(
   requireAuth,
   async (req, res, next) => {
     try {
-      const teacherId = req.user.id;
+      const teacherId = (req.user?.sub || req.user?._id || "").toString();
       const { studentId } = req.params;
 
       const limit = Math.min(parseInt(req.query.limit || "20", 10), 100);
