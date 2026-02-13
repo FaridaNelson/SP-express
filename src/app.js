@@ -8,6 +8,7 @@ import cookieParser from "cookie-parser";
 import { connectDB } from "./db.js";
 import authRoutes from "./routes/auth.routes.js";
 import teacherRoutes from "./routes/teacher.routes.js";
+import scoresRoutes from "./routes/scores.routes.js";
 import parentRoutes from "./routes/parent.routes.js";
 import soundsliceRoutes from "./routes/soundslice.routes.js";
 import { notFoundHandler, errorHandler } from "./middleware/error.js";
@@ -40,6 +41,8 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
+
+app.use("/api", scoresRoutes);
 
 // Parsing & security
 app.use(express.json({ limit: "10mb" }));
