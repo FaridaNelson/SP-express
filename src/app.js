@@ -21,6 +21,8 @@ const allowedOrigins = [
   "https://www.studiopulse.co",
   "http://localhost:5173",
   "http://127.0.0.1:5173",
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
 ];
 
 app.use(
@@ -28,7 +30,7 @@ app.use(
     origin: function (origin, callback) {
       if (!origin) return callback(null, true);
       if (allowedOrigins.includes(origin)) {
-        return callback(null, origin);
+        return callback(null, true);
       }
       console.warn("Blocked by CORS:", origin);
       return callback(new Error("CORS: Origin not allowed"), false);
@@ -36,7 +38,7 @@ app.use(
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
-  })
+  }),
 );
 
 // Parsing & security
@@ -45,13 +47,13 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 app.set("trust proxy", 1);
 app.use(
-  helmet({ referrerPolicy: { policy: "strict-origin-when-cross-origin" } })
+  helmet({ referrerPolicy: { policy: "strict-origin-when-cross-origin" } }),
 );
 app.use(morgan("dev"));
 
 // Health routes
 app.get("/", (_req, res) =>
-  res.status(200).json({ ok: true, service: "StudioPulse API", root: true })
+  res.status(200).json({ ok: true, service: "StudioPulse API", root: true }),
 );
 
 app.get("/api/health", (_req, res) => {
