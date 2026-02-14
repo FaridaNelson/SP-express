@@ -42,8 +42,6 @@ app.use(
   }),
 );
 
-app.use("/api", scoresRoutes);
-
 // Parsing & security
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
@@ -74,6 +72,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/teacher", teacherRoutes);
 app.use("/api/parent", parentRoutes);
 app.use("/api/soundslice", soundsliceRoutes);
+app.use("/api", scoresRoutes);
 
 // Error handling
 app.use(notFoundHandler);
