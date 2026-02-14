@@ -11,7 +11,7 @@ router.post(
   requireAuth,
   async (req, res, next) => {
     try {
-      const teacherId = (req.user?.sub || req.user?._id || "").toString();
+      const teacherId = req.user?._id;
       const { studentId } = req.params;
 
       const { entries } = req.body || {};
@@ -28,32 +28,40 @@ router.post(
         return res.status(404).json({ message: "Student not found" });
 
       // 2) create log entry
-      const docs = entries.map((e) => ({
-        teacherId,
-        studentId,
-        itemId: e.itemId ?? e.elementId,
-        itemLabel: e.itemLabel ?? e.elementLabel,
-        value: e.value ?? e.score,
-        note: e.note ?? e.notes ?? undefined,
-        tempoCurrent: e.tempoCurrent,
-        tempoGoal: e.tempoGoal,
-        dynamics: e.dynamics,
-        articulation: e.articulation,
-        lessonDate: e.lessonDate,
-      }));
+      const docs = entries.map((e) => {
+        const lessonDate = e.lessonDate ?? e.date; // allow either
+        const elementId = e.elementId ?? e.itemId;
+        const elementLabel = e.elementLabel ?? e.itemLabel;
+
+        // support either "score" or "value"
+        const score = e.score ?? e.value;
+
+        return {
+          teacherId,
+          studentId,
+          lessonDate,
+          elementId,
+          elementLabel,
+          score,
+          tempoCurrent: e.tempoCurrent,
+          tempoGoal: e.tempoGoal,
+          dynamics: e.dynamics,
+          articulation: e.articulation,
+        };
+      });
+
+      for (const d of docs) {
+        if (!d.lessonDate)
+          return res.status(400).json({ message: "lessonDate required" });
+        if (!d.elementId)
+          return res.status(400).json({ message: "elementId required" });
+      }
 
       const created = await ScoreEntry.insertMany(docs);
       // 3) OPTIONAL: also update the Student.progressItems score “current value”
       // If your UI expects progressItems.score to change:
-      for (const d of docs) {
-        if (!d.itemId || d.value == null) continue;
-        await Student.updateOne(
-          { _id: studentId, teacherId, "progressItems.id": d.itemId },
-          { $set: { "progressItems.$.score": d.value } },
-        );
-      }
 
-      res.status(201).json({ entries: created });
+      res.status(201).json({ items: created });
     } catch (err) {
       next(err);
     }
@@ -66,7 +74,7 @@ router.get(
   requireAuth,
   async (req, res, next) => {
     try {
-      const teacherId = (req.user?.sub || req.user?._id || "").toString();
+      const teacherId = req.user?._id;
       const { studentId } = req.params;
 
       const limit = Math.min(parseInt(req.query.limit || "20", 10), 100);
