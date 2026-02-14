@@ -20,26 +20,27 @@ router.post(
       }
 
       // 1) make sure student belongs to this teacher
-      const student = await Student.findOne({ _id: studentId, teacherId });
+      const student = await Student.findOne({
+        _id: studentId,
+        teacherId,
+      }).select("_id");
       if (!student)
         return res.status(404).json({ message: "Student not found" });
 
       // 2) create log entry
-      const entry = await ScoreEntry.create({
+      const docs = entries.map((e) => ({
         teacherId,
         studentId,
-        itemId: e.elementId ?? e.itemId,
-        itemLabel: e.elementLabel ?? e.itemLabel,
-        value: e.score ?? e.value,
-        note: e.note,
-
-        //extra fields for more detailed feedback:
-        lessonDate: e.lessonDate,
+        itemId: e.itemId ?? e.elementId,
+        itemLabel: e.itemLabel ?? e.elementLabel,
+        value: e.value ?? e.score,
+        note: e.note ?? e.notes ?? undefined,
         tempoCurrent: e.tempoCurrent,
         tempoGoal: e.tempoGoal,
         dynamics: e.dynamics,
         articulation: e.articulation,
-      });
+        lessonDate: e.lessonDate,
+      }));
 
       const created = await ScoreEntry.insertMany(docs);
       // 3) OPTIONAL: also update the Student.progressItems score “current value”
@@ -52,7 +53,7 @@ router.post(
         );
       }
 
-      res.status(201).json({ entry });
+      res.status(201).json({ entries: created });
     } catch (err) {
       next(err);
     }
