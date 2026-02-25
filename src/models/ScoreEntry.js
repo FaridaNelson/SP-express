@@ -38,6 +38,18 @@ const scoreEntrySchema = new mongoose.Schema(
     tempoGoal: { type: Number, min: 0 },
     dynamics: { type: String, trim: true, maxlength: 1000 },
     articulation: { type: String, trim: true, maxlength: 1000 },
+
+    // ✅ Sight Reading notes
+    pitchAccuracy: { type: String, trim: true, maxlength: 1000 },
+    rhythmAccuracy: { type: String, trim: true, maxlength: 1000 },
+    adequateTempo: { type: String, trim: true, maxlength: 1000 },
+    confidentPresentation: { type: String, trim: true, maxlength: 1000 },
+
+    // ✅ Aural Training notes
+    rhythmAccuracy: { type: String, trim: true, maxlength: 1000 },
+    singingInPitch: { type: String, trim: true, maxlength: 1000 },
+    musicalMemory: { type: String, trim: true, maxlength: 1000 },
+    musicalPerceptiveness: { type: String, trim: true, maxlength: 1000 },
   },
   { timestamps: true }, // createdAt is the “time of creation”
 );

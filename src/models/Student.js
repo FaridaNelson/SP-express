@@ -5,8 +5,12 @@ const studentSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
     email: { type: String, trim: true, lowercase: true },
-    instrument: { type: String, trim: true },
-    grade: { type: Number },
+    instrument: {
+      type: String,
+      required: true,
+      enum: ["Piano", "Voice", "Guitar"],
+    },
+    grade: { type: Number, required: true, min: 1, max: 8 },
     parent: {
       name: { type: String, trim: true },
       email: { type: String, trim: true, lowercase: true },
@@ -32,7 +36,7 @@ const studentSchema = new mongoose.Schema(
       },
     ],
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 export default mongoose.model("Student", studentSchema);

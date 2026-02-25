@@ -12,6 +12,7 @@ import scoresRoutes from "./routes/scores.routes.js";
 import parentRoutes from "./routes/parent.routes.js";
 import soundsliceRoutes from "./routes/soundslice.routes.js";
 import { notFoundHandler, errorHandler } from "./middleware/error.js";
+import lessonsRouter from "./routes/lessons.routes.js";
 
 const app = express();
 
@@ -51,6 +52,8 @@ app.use(
   helmet({ referrerPolicy: { policy: "strict-origin-when-cross-origin" } }),
 );
 app.use(morgan("dev"));
+
+app.use("/api/lessons", lessonsRouter);
 
 // Health routes
 app.get("/", (_req, res) =>

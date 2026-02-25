@@ -136,7 +136,7 @@ r.post("/login", async (req, res, next) => {
 });
 
 r.get("/me", optionalAuth, async (req, res) => {
-  if (!req.user?.sub) return res.json({ user: null });
+  if (!req.userId) return res.json({ user: null });
 
   const user = await User.findById(req.user.sub)
     .select("_id name email role roles studentId")

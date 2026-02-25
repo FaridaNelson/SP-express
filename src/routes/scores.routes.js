@@ -11,7 +11,7 @@ router.post(
   requireAuth,
   async (req, res, next) => {
     try {
-      const teacherId = req.user?._id;
+      const teacherId = req.userId;
       const { studentId } = req.params;
 
       const { entries } = req.body || {};
@@ -47,6 +47,13 @@ router.post(
           tempoGoal: e.tempoGoal,
           dynamics: e.dynamics,
           articulation: e.articulation,
+          pitchAccuracy: e.pitchAccuracy,
+          rhythmAccuracy: e.rhythmAccuracy,
+          adequateTempo: e.adequateTempo,
+          confidentPresentation: e.confidentPresentation,
+          singingInPitch: e.singingInPitch,
+          musicalMemory: e.musicalMemory,
+          musicalPerceptiveness: e.musicalPerceptiveness,
         };
       });
 
@@ -74,7 +81,7 @@ router.get(
   requireAuth,
   async (req, res, next) => {
     try {
-      const teacherId = req.user?._id;
+      const teacherId = req.userId;
       const { studentId } = req.params;
 
       const limit = Math.min(parseInt(req.query.limit || "20", 10), 100);

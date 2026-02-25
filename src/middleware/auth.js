@@ -18,8 +18,8 @@ function normalizeUserFromJwt(payload = {}) {
   const roles = Array.isArray(payload.roles)
     ? payload.roles
     : payload.role
-    ? [payload.role]
-    : [];
+      ? [payload.role]
+      : [];
 
   return {
     // core identifiers
@@ -50,6 +50,10 @@ export function requireAuth(req, res, next) {
   try {
     const payload = jwt.verify(token, SECRET);
     req.user = normalizeUserFromJwt(payload);
+
+    req.userId = req.user.sub;
+    req.roles = req.user.roles;
+
     return next();
   } catch (e) {
     return res.status(401).json({ error: "Invalid or expired token" });
@@ -74,8 +78,8 @@ export async function optionalAuth(req, _res, next) {
       const roles = Array.isArray(dbUser.roles)
         ? dbUser.roles
         : dbUser.role
-        ? [dbUser.role]
-        : userShape.roles;
+          ? [dbUser.role]
+          : userShape.roles;
 
       userShape = {
         ...userShape,
@@ -88,6 +92,8 @@ export async function optionalAuth(req, _res, next) {
         studentId: dbUser.studentId ?? userShape.studentId,
         parentId: dbUser.parentId ?? userShape.parentId,
       };
+      req.userId = userShape.sub || null;
+      req.roles = userShape.roles || [];
     }
 
     req.user = userShape;
