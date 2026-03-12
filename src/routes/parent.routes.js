@@ -1,3 +1,4 @@
+import { getParentStudents } from "../controllers/parent.controller.js";
 import { Router } from "express";
 import Student from "../models/Student.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -36,7 +37,7 @@ r.get(
     } catch (e) {
       next(e);
     }
-  }
+  },
 );
 
 export default r;

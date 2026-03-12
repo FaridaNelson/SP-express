@@ -4,13 +4,12 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
-
+import examCycleRoutes from "./routes/examPreparationCycle.routes.js";
 import { connectDB } from "./db.js";
 import authRoutes from "./routes/auth.routes.js";
 import teacherRoutes from "./routes/teacher.routes.js";
 import scoresRoutes from "./routes/scores.routes.js";
 import parentRoutes from "./routes/parent.routes.js";
-import soundsliceRoutes from "./routes/soundslice.routes.js";
 import { notFoundHandler, errorHandler } from "./middleware/error.js";
 import lessonsRouter from "./routes/lessons.routes.js";
 
@@ -54,7 +53,7 @@ app.use(
 app.use(morgan("dev"));
 
 app.use("/api/lessons", lessonsRouter);
-
+app.use("/api/exam-cycles", examCycleRoutes);
 // Health routes
 app.get("/", (_req, res) =>
   res.status(200).json({ ok: true, service: "StudioPulse API", root: true }),
@@ -74,7 +73,6 @@ app.get("/healthz", (_req, res) => res.send("ok"));
 app.use("/api/auth", authRoutes);
 app.use("/api/teacher", teacherRoutes);
 app.use("/api/parent", parentRoutes);
-app.use("/api/soundslice", soundsliceRoutes);
 app.use("/api", scoresRoutes);
 
 // Error handling

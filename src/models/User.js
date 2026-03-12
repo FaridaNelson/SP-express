@@ -16,19 +16,14 @@ const userSchema = new mongoose.Schema(
     passwordHash: { type: String, select: false },
     roles: {
       type: [String],
-      default: [""],
+      default: [],
       enum: ["admin", "teacher", "student", "parent"],
     },
-
-    // link into your domain:
-    teacherId: { type: mongoose.Types.ObjectId, ref: "User" },
-    studentId: { type: mongoose.Types.ObjectId, ref: "Student" },
-    parentId: { type: mongoose.Types.ObjectId, ref: "Parent" },
 
     status: { type: String, default: "active" }, // active|locked|invited|deleted
     deletedAt: Date, // soft-delete flag
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Helpers to set/verify password safely

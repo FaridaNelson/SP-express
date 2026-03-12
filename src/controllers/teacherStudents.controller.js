@@ -14,8 +14,7 @@ const DEFAULT_ITEMS = [
 ];
 
 function getTeacherId(req) {
-  // keep same behavior
-  return req.userId;
+  return req.user?._id;
 }
 
 export async function listStudents(req, res, next) {
@@ -23,7 +22,9 @@ export async function listStudents(req, res, next) {
     const teacherId = getTeacherId(req);
 
     const list = await Student.find({ teacherId })
-      .select("_id name inviteCode email instrument grade parent")
+      .select(
+        "_id name inviteCode email instrument grade parentIds studentUserId activeExamCycleId",
+      )
       .sort({ createdAt: 1 })
       .lean();
 
@@ -41,7 +42,9 @@ export async function getProgress(req, res, next) {
       .select("_id progressItems")
       .lean();
 
-    if (!stu) return res.status(404).json({ error: "Student not found" });
+    if (!stu) {
+      return res.status(404).json({ error: "Student not found" });
+    }
 
     return res.json({
       items: stu.progressItems?.length ? stu.progressItems : DEFAULT_ITEMS,
@@ -66,7 +69,9 @@ export async function setProgress(req, res, next) {
       { new: true, projection: "_id progressItems" },
     ).lean();
 
-    if (!stu) return res.status(404).json({ error: "Student not found" });
+    if (!stu) {
+      return res.status(404).json({ error: "Student not found" });
+    }
 
     return res.status(200).json({ items: stu.progressItems });
   } catch (e) {
@@ -77,26 +82,40 @@ export async function setProgress(req, res, next) {
 export async function createStudent(req, res, next) {
   try {
     const teacherId = getTeacherId(req);
-    const { name, email, instrument, grade, parent } = req.body || {};
+    const { name, email, instrument, grade, parentIds, studentUserId } =
+      req.body || {};
+
+    if (!teacherId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
 
     if (!name || !String(name).trim()) {
       return res.status(400).json({ error: "Name is required" });
     }
 
-    // backend validation
     const inst = validateInstrument(instrument);
-    if (!inst.ok) return res.status(400).json({ error: inst.message });
+    if (!inst.ok) {
+      return res.status(400).json({ error: inst.message });
+    }
 
     const grd = validateGradeRequired(grade);
-    if (!grd.ok) return res.status(400).json({ error: grd.message });
+    if (!grd.ok) {
+      return res.status(400).json({ error: grd.message });
+    }
+
+    if (!Array.isArray(parentIds) || parentIds.length === 0) {
+      return res.status(400).json({ error: "At least one parent is required" });
+    }
 
     const doc = await Student.create({
       name: String(name).trim(),
-      email: email ? String(email).trim() : "",
+      email: email ? String(email).trim().toLowerCase() : "",
       instrument: inst.value,
-      grade: grd.value, // null or integer 1–8
-      parent: parent || {},
+      grade: grd.value,
+      parentIds,
+      studentUserId: studentUserId || null,
       teacherId,
+      progressItems: DEFAULT_ITEMS,
     });
 
     return res.status(201).json({ student: doc });

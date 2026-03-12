@@ -11,15 +11,35 @@ const studentSchema = new mongoose.Schema(
       enum: ["Piano", "Voice", "Guitar"],
     },
     grade: { type: Number, required: true, min: 1, max: 8 },
-    parent: {
-      name: { type: String, trim: true },
-      email: { type: String, trim: true, lowercase: true },
+    parentIds: {
+      type: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+      ],
+      validate: {
+        validator: function (arr) {
+          return Array.isArray(arr) && arr.length > 0;
+        },
+        message: "At least one parent is required",
+      },
+    },
+    studentUserId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
     },
     teacherId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       index: true,
       required: true,
+    },
+    activeExamCycleId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ExamPreparationCycle",
+      default: null,
     },
     inviteCode: {
       type: String,
