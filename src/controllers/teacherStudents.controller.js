@@ -23,9 +23,17 @@ export async function listStudents(req, res, next) {
 
     const list = await Student.find({ teacherId })
       .select(
-        "_id name inviteCode email instrument grade parentIds studentUserId activeExamCycleId",
+        "_id firstName lastName name inviteCode email instrument grade parent parentIds teacherId activeExamCycleId",
       )
-      .sort({ createdAt: 1 })
+      .populate({
+        path: "parentIds",
+        select: "_id firstName lastName name email phone roles status",
+      })
+      .populate({
+        path: "teacherId",
+        select: "_id firstName lastName name email",
+      })
+      .sort({ lastName: 1, firstName: 1 })
       .lean();
 
     return res.status(200).json({ students: list });
@@ -82,40 +90,48 @@ export async function setProgress(req, res, next) {
 export async function createStudent(req, res, next) {
   try {
     const teacherId = getTeacherId(req);
-    const { name, email, instrument, grade, parentIds, studentUserId } =
+
+    const { firstName, lastName, email, instrument, grade, parent } =
       req.body || {};
 
-    if (!teacherId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+    const studentFirstName = String(firstName || "").trim();
+    const studentLastName = String(lastName || "").trim();
+    const fullStudentName = `${studentFirstName} ${studentLastName}`.trim();
 
-    if (!name || !String(name).trim()) {
-      return res.status(400).json({ error: "Name is required" });
+    if (!studentFirstName || !studentLastName) {
+      return res.status(400).json({
+        error: "Student first name and last name are required",
+      });
     }
 
     const inst = validateInstrument(instrument);
-    if (!inst.ok) {
-      return res.status(400).json({ error: inst.message });
-    }
+    if (!inst.ok) return res.status(400).json({ error: inst.message });
 
     const grd = validateGradeRequired(grade);
-    if (!grd.ok) {
-      return res.status(400).json({ error: grd.message });
-    }
+    if (!grd.ok) return res.status(400).json({ error: grd.message });
 
-    if (!Array.isArray(parentIds) || parentIds.length === 0) {
-      return res.status(400).json({ error: "At least one parent is required" });
-    }
+    const parentFirstName = String(parent?.firstName || "").trim();
+    const parentLastName = String(parent?.lastName || "").trim();
+    const parentPhone = String(parent?.phone || "").trim();
+    const fullParentName =
+      String(parent?.name || "").trim() ||
+      `${parentFirstName} ${parentLastName}`.trim();
 
     const doc = await Student.create({
-      name: String(name).trim(),
+      firstName: studentFirstName,
+      lastName: studentLastName,
+      name: fullStudentName,
       email: email ? String(email).trim().toLowerCase() : "",
       instrument: inst.value,
       grade: grd.value,
-      parentIds,
-      studentUserId: studentUserId || null,
+      parent: {
+        firstName: parentFirstName,
+        lastName: parentLastName,
+        name: fullParentName,
+        email: parent?.email ? String(parent.email).trim().toLowerCase() : "",
+        phone: parentPhone,
+      },
       teacherId,
-      progressItems: DEFAULT_ITEMS,
     });
 
     return res.status(201).json({ student: doc });

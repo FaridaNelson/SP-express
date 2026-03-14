@@ -16,11 +16,37 @@ function normalizeEmail(email) {
     .toLowerCase();
 }
 
+function buildFullName(firstName, lastName) {
+  return `${String(firstName || "").trim()} ${String(lastName || "").trim()}`.trim();
+}
+
+const ALLOWED_INSTRUMENTS = ["Piano", "Voice", "Guitar"];
+const ALLOWED_YEARS_TEACHING = ["0-2", "3-5", "6-10", "10+"];
+
+function normalizeInstrument(value) {
+  const v = String(value || "").trim();
+  return ALLOWED_INSTRUMENTS.includes(v) ? v : "";
+}
+
+function normalizeInstrumentsTaught(values) {
+  if (!Array.isArray(values)) return [];
+  return [...new Set(values.map((v) => String(v || "").trim()))].filter((v) =>
+    ALLOWED_INSTRUMENTS.includes(v),
+  );
+}
+
+function normalizeYearsTeaching(value) {
+  const v = String(value || "").trim();
+  return ALLOWED_YEARS_TEACHING.includes(v) ? v : "";
+}
+
 function setSessionCookie(res, user) {
   const token = jwt.sign(
     {
       sub: user._id.toString(),
       name: user.name,
+      firstName: user.firstName,
+      lastName: user.lastName,
       email: user.email,
       roles: Array.isArray(user.roles) ? user.roles : [],
     },
@@ -56,13 +82,33 @@ async function resolveStudentFromInviteOrId(rawValue) {
 
 export async function signup(req, res, next) {
   try {
-    const { name, email, password, role, roles, studentId, inviteCode } =
-      req.body || {};
+    const {
+      firstName,
+      lastName,
+      email,
+      password,
+      role,
+      roles,
+      studentId,
+      inviteCode,
+      instrument,
+      studioName,
+      instrumentsTaught,
+      yearsTeaching,
+    } = req.body || {};
+    const trimmedFirstName = String(firstName || "").trim();
+    const trimmedLastName = String(lastName || "").trim();
 
-    if (!name || !email || !password) {
-      return res
-        .status(400)
-        .json({ error: "Name, email, and password are required" });
+    if (!trimmedFirstName || !trimmedLastName || !email || !password) {
+      return res.status(400).json({
+        error: "First name, last name, email, and password are required",
+      });
+    }
+
+    if (String(password || "").length < 8) {
+      return res.status(400).json({
+        error: "Password must be at least 8 characters",
+      });
     }
 
     const normalizedEmail = normalizeEmail(email);
@@ -83,6 +129,42 @@ export async function signup(req, res, next) {
       return res.status(400).json({ error: `Invalid role: ${invalidRole}` });
     }
 
+    const isTeacher = normalizedRoles.includes("teacher");
+    const isStudent = normalizedRoles.includes("student");
+    const isParent = normalizedRoles.includes("parent");
+
+    const normalizedInstrument = normalizeInstrument(instrument);
+    const normalizedStudioName = String(studioName || "").trim();
+    const normalizedInstrumentsTaught =
+      normalizeInstrumentsTaught(instrumentsTaught);
+    const normalizedYearsTeaching = normalizeYearsTeaching(yearsTeaching);
+
+    if (isStudent && !isParent && !normalizedInstrument) {
+      return res.status(400).json({
+        error: "Instrument is required for student signup",
+      });
+    }
+
+    if (isTeacher) {
+      if (!normalizedStudioName) {
+        return res.status(400).json({
+          error: "Studio / organization is required for teacher signup",
+        });
+      }
+
+      if (normalizedInstrumentsTaught.length === 0) {
+        return res.status(400).json({
+          error: "Please select at least one instrument you teach",
+        });
+      }
+
+      if (!normalizedYearsTeaching) {
+        return res.status(400).json({
+          error: "Years teaching is required for teacher signup",
+        });
+      }
+    }
+
     const existing = await User.findOne({ email: normalizedEmail });
     if (existing) {
       return res.status(409).json({ error: "Email already registered" });
@@ -90,8 +172,7 @@ export async function signup(req, res, next) {
 
     let linkedStudent = null;
 
-    // Preserve invite-code / join-code logic for parent signup
-    if (normalizedRoles.includes("parent")) {
+    if (isParent) {
       const linkValue = inviteCode || studentId;
 
       if (!linkValue) {
@@ -110,33 +191,41 @@ export async function signup(req, res, next) {
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
+    const fullName = buildFullName(trimmedFirstName, trimmedLastName);
 
     const user = await User.create({
-      name: String(name).trim(),
+      firstName: trimmedFirstName,
+      lastName: trimmedLastName,
+      name: fullName,
       email: normalizedEmail,
       passwordHash,
       roles: normalizedRoles,
+      instrument: isStudent && !isParent ? normalizedInstrument : "",
+      studioName: isTeacher ? normalizedStudioName : "",
+      instrumentsTaught: isTeacher ? normalizedInstrumentsTaught : [],
+      yearsTeaching: isTeacher ? normalizedYearsTeaching : "",
     });
-
-    // Attach parent user to the student after successful parent signup
-    if (normalizedRoles.includes("parent") && linkedStudent) {
+    if (isParent && linkedStudent) {
       await Student.updateOne(
         { _id: linkedStudent._id },
         { $addToSet: { parentIds: user._id } },
       );
     }
 
-    // Optional: if later you want student invite-code signup, you could attach
-    // studentUserId here for users with role "student".
-
     setSessionCookie(res, user);
 
     return res.status(201).json({
       user: {
         _id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
         name: user.name,
         email: user.email,
         roles: user.roles,
+        instrument: user.instrument,
+        studioName: user.studioName,
+        instrumentsTaught: user.instrumentsTaught,
+        yearsTeaching: user.yearsTeaching,
       },
       linkedStudentId: linkedStudent?._id || null,
     });
@@ -153,7 +242,9 @@ export async function login(req, res, next) {
     const { email, password } = req.body || {};
 
     if (!email || !password) {
-      return res.status(400).json({ error: "Email and password are required" });
+      return res.status(400).json({
+        error: "Email and password are required",
+      });
     }
 
     const normalizedEmail = normalizeEmail(email);
@@ -175,9 +266,15 @@ export async function login(req, res, next) {
     return res.json({
       user: {
         _id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
         name: user.name,
         email: user.email,
         roles: user.roles,
+        instrument: user.instrument,
+        studioName: user.studioName,
+        instrumentsTaught: user.instrumentsTaught,
+        yearsTeaching: user.yearsTeaching,
       },
     });
   } catch (err) {
@@ -199,9 +296,15 @@ export async function me(req, res, next) {
     return res.json({
       user: {
         _id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
         name: user.name,
         email: user.email,
         roles: user.roles,
+        instrument: user.instrument,
+        studioName: user.studioName,
+        instrumentsTaught: user.instrumentsTaught,
+        yearsTeaching: user.yearsTeaching,
       },
     });
   } catch (err) {

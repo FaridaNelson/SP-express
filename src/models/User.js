@@ -3,7 +3,19 @@ import bcrypt from "bcryptjs";
 
 const userSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true, trim: true, maxlength: 60 },
+    firstName: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 40,
+    },
+    lastName: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 40,
+    },
+    name: { type: String, required: true, trim: true, maxlength: 90 },
     email: {
       type: String,
       required: true,
@@ -18,6 +30,36 @@ const userSchema = new mongoose.Schema(
       type: [String],
       default: [],
       enum: ["admin", "teacher", "student", "parent"],
+    },
+
+    phone: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 30,
+    },
+
+    instrument: {
+      type: String,
+      enum: ["", "Piano", "Voice", "Guitar"],
+      default: "",
+      trim: true,
+    },
+    studioName: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 120,
+    },
+    instrumentsTaught: {
+      type: [String],
+      default: [],
+      enum: ["Piano", "Voice", "Guitar"],
+    },
+    yearsTeaching: {
+      type: String,
+      default: "",
+      enum: ["", "0-2", "3-5", "6-10", "10+"],
     },
 
     status: { type: String, default: "active" }, // active|locked|invited|deleted
