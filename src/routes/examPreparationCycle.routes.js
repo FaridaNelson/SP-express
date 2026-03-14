@@ -1,4 +1,4 @@
-import express from "express";
+import { Router } from "express";
 import {
   createCycle,
   getActiveCycleForStudent,
@@ -6,10 +6,12 @@ import {
   archiveCycle,
 } from "../controllers/examPreparationCycle.controller.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireRole } from "../middleware/roles.js";
 
-const router = express.Router();
+const router = Router();
 
 router.use(requireAuth);
+router.use(requireRole("teacher", "admin"));
 
 router.post("/", createCycle);
 router.get("/student/:studentId/active", getActiveCycleForStudent);

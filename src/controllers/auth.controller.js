@@ -92,12 +92,14 @@ export async function signup(req, res, next) {
       studentId,
       inviteCode,
       instrument,
+      phone,
       studioName,
       instrumentsTaught,
       yearsTeaching,
     } = req.body || {};
     const trimmedFirstName = String(firstName || "").trim();
     const trimmedLastName = String(lastName || "").trim();
+    const normalizedPhone = String(phone || "").trim();
 
     if (!trimmedFirstName || !trimmedLastName || !email || !password) {
       return res.status(400).json({
@@ -200,6 +202,7 @@ export async function signup(req, res, next) {
       email: normalizedEmail,
       passwordHash,
       roles: normalizedRoles,
+      phone: normalizedPhone,
       instrument: isStudent && !isParent ? normalizedInstrument : "",
       studioName: isTeacher ? normalizedStudioName : "",
       instrumentsTaught: isTeacher ? normalizedInstrumentsTaught : [],
@@ -223,6 +226,7 @@ export async function signup(req, res, next) {
         email: user.email,
         roles: user.roles,
         instrument: user.instrument,
+        phone: user.phone,
         studioName: user.studioName,
         instrumentsTaught: user.instrumentsTaught,
         yearsTeaching: user.yearsTeaching,
@@ -271,6 +275,7 @@ export async function login(req, res, next) {
         name: user.name,
         email: user.email,
         roles: user.roles,
+        phone: user.phone,
         instrument: user.instrument,
         studioName: user.studioName,
         instrumentsTaught: user.instrumentsTaught,
@@ -301,6 +306,7 @@ export async function me(req, res, next) {
         name: user.name,
         email: user.email,
         roles: user.roles,
+        phone: user.phone,
         instrument: user.instrument,
         studioName: user.studioName,
         instrumentsTaught: user.instrumentsTaught,

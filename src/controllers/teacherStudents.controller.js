@@ -3,18 +3,10 @@ import {
   validateInstrument,
   validateGradeRequired,
 } from "../utils/validators/student.validators.js";
-
-const DEFAULT_ITEMS = [
-  { id: "scales", label: "Scales", weight: 14, score: 0 },
-  { id: "pieceA", label: "Piece A", weight: 20, score: 0 },
-  { id: "pieceB", label: "Piece B", weight: 20, score: 0 },
-  { id: "pieceC", label: "Piece C", weight: 20, score: 0 },
-  { id: "sightReading", label: "Sight Reading", weight: 14, score: 0 },
-  { id: "auralTraining", label: "Aural Training", weight: 12, score: 0 },
-];
+import { DEFAULT_PROGRESS_ITEMS } from "../constants/progressItems.js";
 
 function getTeacherId(req) {
-  return req.user?._id;
+  return req.user._id;
 }
 
 export async function listStudents(req, res, next) {
@@ -46,16 +38,21 @@ export async function getProgress(req, res, next) {
   try {
     const teacherId = getTeacherId(req);
 
-    const stu = await Student.findOne({ _id: req.params.id, teacherId })
+    const student = await Student.findOne({
+      _id: req.params.id,
+      teacherId,
+    })
       .select("_id progressItems")
       .lean();
 
-    if (!stu) {
+    if (!student) {
       return res.status(404).json({ error: "Student not found" });
     }
 
     return res.json({
-      items: stu.progressItems?.length ? stu.progressItems : DEFAULT_ITEMS,
+      items: student.progressItems?.length
+        ? student.progressItems
+        : DEFAULT_PROGRESS_ITEMS,
     });
   } catch (e) {
     next(e);
@@ -71,17 +68,17 @@ export async function setProgress(req, res, next) {
       return res.status(400).json({ error: "items[] required" });
     }
 
-    const stu = await Student.findOneAndUpdate(
+    const student = await Student.findOneAndUpdate(
       { _id: req.params.id, teacherId },
       { $set: { progressItems: items } },
       { new: true, projection: "_id progressItems" },
     ).lean();
 
-    if (!stu) {
+    if (!student) {
       return res.status(404).json({ error: "Student not found" });
     }
 
-    return res.status(200).json({ items: stu.progressItems });
+    return res.status(200).json({ items: student.progressItems });
   } catch (e) {
     next(e);
   }
@@ -90,7 +87,6 @@ export async function setProgress(req, res, next) {
 export async function createStudent(req, res, next) {
   try {
     const teacherId = getTeacherId(req);
-
     const { firstName, lastName, email, instrument, grade, parent } =
       req.body || {};
 
@@ -105,10 +101,14 @@ export async function createStudent(req, res, next) {
     }
 
     const inst = validateInstrument(instrument);
-    if (!inst.ok) return res.status(400).json({ error: inst.message });
+    if (!inst.ok) {
+      return res.status(400).json({ error: inst.message });
+    }
 
     const grd = validateGradeRequired(grade);
-    if (!grd.ok) return res.status(400).json({ error: grd.message });
+    if (!grd.ok) {
+      return res.status(400).json({ error: grd.message });
+    }
 
     const parentFirstName = String(parent?.firstName || "").trim();
     const parentLastName = String(parent?.lastName || "").trim();
@@ -117,7 +117,7 @@ export async function createStudent(req, res, next) {
       String(parent?.name || "").trim() ||
       `${parentFirstName} ${parentLastName}`.trim();
 
-    const doc = await Student.create({
+    const student = await Student.create({
       firstName: studentFirstName,
       lastName: studentLastName,
       name: fullStudentName,
@@ -134,7 +134,7 @@ export async function createStudent(req, res, next) {
       teacherId,
     });
 
-    return res.status(201).json({ student: doc });
+    return res.status(201).json({ student });
   } catch (e) {
     next(e);
   }

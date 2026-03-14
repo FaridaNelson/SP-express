@@ -9,29 +9,14 @@ import {
   setProgress,
 } from "../controllers/teacherStudents.controller.js";
 
-const r = Router();
+const router = Router();
 
-r.get("/students", requireAuth, requireRole("teacher", "admin"), listStudents);
+router.use(requireAuth);
+router.use(requireRole("teacher", "admin"));
 
-r.get(
-  "/students/:id/progress",
-  requireAuth,
-  requireRole("teacher", "admin"),
-  getProgress,
-);
+router.get("/students", listStudents);
+router.get("/students/:id/progress", getProgress);
+router.post("/students/:id/progress", setProgress);
+router.post("/students", createStudent);
 
-r.post(
-  "/students/:id/progress",
-  requireAuth,
-  requireRole("teacher", "admin"),
-  setProgress,
-);
-
-r.post(
-  "/students",
-  requireAuth,
-  requireRole("teacher", "admin"),
-  createStudent,
-);
-
-export default r;
+export default router;
