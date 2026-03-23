@@ -1,0 +1,6 @@
+.env
+.mongo-test-uri
+node_modules/
+.DS_Store
+c.txt
+cookies.txt
