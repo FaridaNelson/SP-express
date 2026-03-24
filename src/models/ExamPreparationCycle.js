@@ -162,6 +162,18 @@ const examPreparationCycleSchema = new mongoose.Schema(
       index: true,
     },
 
+    pieces: {
+      type: [
+        {
+          key: { type: String, trim: true },
+          label: { type: String, trim: true },
+          title: { type: String, default: "", trim: true },
+          composer: { type: String, default: "", trim: true },
+        },
+      ],
+      default: [],
+    },
+
     examLocation: {
       type: String,
       default: "",

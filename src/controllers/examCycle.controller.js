@@ -96,6 +96,7 @@ export async function createExamCycle(req, res, next) {
       withdrawalReason = "",
       closingNote = "",
       examTaken = null,
+      pieces = [],
     } = req.body || {};
 
     if (!studentId || !instrument || !examType || !examGrade) {
@@ -117,6 +118,16 @@ export async function createExamCycle(req, res, next) {
     // 🔥 NEW: initialize requiredElements
     const requiredElements = getRequiredElementsForExamType(examType);
 
+    // Sanitize pieces array
+    const sanitizedPieces = Array.isArray(pieces)
+      ? pieces.map((p) => ({
+          key: String(p.key || p.label || "").replace(/\s+/g, ""),
+          label: String(p.label || ""),
+          title: String(p.title || ""),
+          composer: String(p.composer || ""),
+        }))
+      : [];
+
     const cycle = await ExamPreparationCycle.create({
       studentId,
       createdByTeacherId: teacherId,
@@ -124,6 +135,7 @@ export async function createExamCycle(req, res, next) {
       examType,
       examGrade,
       status,
+      pieces: sanitizedPieces,
       examDate: parsedExamDate,
       examLocation: normalizeTrimmedString(examLocation),
       withdrawalReason: normalizeTrimmedString(withdrawalReason),
