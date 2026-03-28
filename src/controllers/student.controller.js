@@ -169,12 +169,29 @@ export async function updateStudent(req, res, next) {
 
     if (updates.parentContactSnapshot !== undefined) {
       const pcs = updates.parentContactSnapshot || {};
+      const prev = student.parentContactSnapshot || {};
+
       student.parentContactSnapshot = {
-        firstName: normalizeTrimmedString(pcs.firstName),
-        lastName: normalizeTrimmedString(pcs.lastName),
-        name: normalizeTrimmedString(pcs.name),
-        email: normalizeEmail(pcs.email),
-        phone: normalizeTrimmedString(pcs.phone),
+        firstName:
+          pcs.firstName !== undefined
+            ? normalizeTrimmedString(pcs.firstName)
+            : normalizeTrimmedString(prev.firstName),
+        lastName:
+          pcs.lastName !== undefined
+            ? normalizeTrimmedString(pcs.lastName)
+            : normalizeTrimmedString(prev.lastName),
+        name:
+          pcs.name !== undefined
+            ? normalizeTrimmedString(pcs.name)
+            : normalizeTrimmedString(prev.name),
+        email:
+          pcs.email !== undefined
+            ? normalizeEmail(pcs.email)
+            : normalizeEmail(prev.email),
+        phone:
+          pcs.phone !== undefined
+            ? normalizeTrimmedString(pcs.phone)
+            : normalizeTrimmedString(prev.phone),
       };
     }
 
