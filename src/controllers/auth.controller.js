@@ -263,12 +263,22 @@ export async function login(req, res, next) {
       "+passwordHash",
     );
     if (!user) {
-      return res.status(401).json({ error: "Invalid credentials" });
+      return res
+        .status(401)
+        .json({
+          error:
+            "Please check your email and try again, or Sign Up to create an account.",
+        });
     }
 
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) {
-      return res.status(401).json({ error: "Invalid credentials" });
+      return res
+        .status(401)
+        .json({
+          error:
+            "Please check your email and try again, or Sign Up to create an account.",
+        });
     }
 
     setSessionCookie(res, user);

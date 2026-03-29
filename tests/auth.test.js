@@ -9,16 +9,18 @@ describe("Auth API", () => {
   describe("POST /api/auth/signup", () => {
     describe("happy path", () => {
       it("registers a teacher with valid fields", async () => {
-        const res = await request(app).post("/api/auth/signup").send({
-          firstName: "Jane",
-          lastName: "Doe",
-          email: "jane@example.com",
-          password: "securepass123",
-          role: "teacher",
-          studioName: "Jane's Studio",
-          instrumentsTaught: ["Piano"],
-          yearsTeaching: "3-5",
-        });
+        const res = await request(app)
+          .post("/api/auth/signup")
+          .send({
+            firstName: "Jane",
+            lastName: "Doe",
+            email: "jane@example.com",
+            password: "securepass123",
+            role: "teacher",
+            studioName: "Jane's Studio",
+            instrumentsTaught: ["Piano"],
+            yearsTeaching: "3-5",
+          });
 
         expect(res.status).toBe(201);
         expect(res.body.user).toBeDefined();
@@ -115,15 +117,17 @@ describe("Auth API", () => {
       });
 
       it("rejects teacher without studioName", async () => {
-        const res = await request(app).post("/api/auth/signup").send({
-          firstName: "T",
-          lastName: "T",
-          email: "teacher-no-studio@example.com",
-          password: "password123",
-          role: "teacher",
-          instrumentsTaught: ["Piano"],
-          yearsTeaching: "3-5",
-        });
+        const res = await request(app)
+          .post("/api/auth/signup")
+          .send({
+            firstName: "T",
+            lastName: "T",
+            email: "teacher-no-studio@example.com",
+            password: "password123",
+            role: "teacher",
+            instrumentsTaught: ["Piano"],
+            yearsTeaching: "3-5",
+          });
         expect(res.status).toBe(400);
         expect(res.body.error).toMatch(/studio/i);
       });
@@ -154,24 +158,28 @@ describe("Auth API", () => {
       });
 
       it("blocks admin in roles array", async () => {
-        const res = await request(app).post("/api/auth/signup").send({
-          firstName: "Evil",
-          lastName: "Admin",
-          email: "evil2@example.com",
-          password: "password123",
-          roles: ["teacher", "admin"],
-          studioName: "Evil Studio",
-          instrumentsTaught: ["Piano"],
-          yearsTeaching: "3-5",
-        });
+        const res = await request(app)
+          .post("/api/auth/signup")
+          .send({
+            firstName: "Evil",
+            lastName: "Admin",
+            email: "evil2@example.com",
+            password: "password123",
+            roles: ["teacher", "admin"],
+            studioName: "Evil Studio",
+            instrumentsTaught: ["Piano"],
+            yearsTeaching: "3-5",
+          });
         expect(res.status).toBe(400);
       });
 
       it("sanitizes NoSQL injection operators in login body", async () => {
-        const res = await request(app).post("/api/auth/login").send({
-          email: { $gt: "" },
-          password: { $gt: "" },
-        });
+        const res = await request(app)
+          .post("/api/auth/login")
+          .send({
+            email: { $gt: "" },
+            password: { $gt: "" },
+          });
         // Should get 400 (missing fields after sanitization), not a crash or data leak
         expect([400, 401]).toContain(res.status);
         expect(res.status).not.toBe(500);
@@ -231,7 +239,9 @@ describe("Auth API", () => {
       });
 
       expect(res.status).toBe(401);
-      expect(res.body.error).toBe("Invalid credentials");
+      expect(res.body.error).toBe(
+        "Please check your email and try again, or Sign Up to create an account.",
+      );
     });
 
     it("rejects nonexistent email with same error message", async () => {
@@ -241,7 +251,9 @@ describe("Auth API", () => {
       });
 
       expect(res.status).toBe(401);
-      expect(res.body.error).toBe("Invalid credentials");
+      expect(res.body.error).toBe(
+        "Please check your email and try again, or Sign Up to create an account.",
+      );
     });
 
     it("rejects missing fields", async () => {
@@ -265,9 +277,7 @@ describe("Auth API", () => {
       const cookies = [signupRes.headers["set-cookie"]].flat();
       const cookie = cookies.find((c) => c.startsWith("sp_jwt="));
 
-      const res = await request(app)
-        .get("/api/auth/me")
-        .set("Cookie", cookie);
+      const res = await request(app).get("/api/auth/me").set("Cookie", cookie);
 
       expect(res.status).toBe(200);
       expect(res.body.user).toBeDefined();
