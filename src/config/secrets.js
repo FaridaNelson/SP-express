@@ -1,6 +1,6 @@
 import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
 
-const REQUIRED_SECRETS = ["MONGODB_URI", "JWT_SECRET"];
+const REQUIRED_SECRETS = ["MONGODB_URI", "JWT_SECRET", "RESEND_API_KEY"];
 
 /**
  * Load secrets from Google Secret Manager (production) or process.env (dev/test).
