@@ -46,6 +46,9 @@ POST /api/auth/login
 POST /api/auth/logout
 GET /api/auth/me
 
+POST /api/auth/forgot-password # always 200, sends reset link if email found
+POST /api/auth/reset-password # validates token, updates password, clears token
+
 POST /api/students/
 GET /api/students/:studentId
 PATCH /api/students/:studentId
@@ -77,7 +80,8 @@ POST /api/teacher-student-access/student/:studentId/access/:accessId/revoke
 
 Cookie-based: sp_jwt (HTTP-only)
 All fetch() calls must use: credentials: 'include'
-CORS whitelist: studiopulse.co, localhost:5173, localhost:3000
+CORS whitelist: https://studiopulse.co, https://www.studiopulse.co,
+http://localhost:3000, http://127.0.0.1:3000
 
 ## Local dev
 

@@ -23,8 +23,6 @@ const app = express();
 const allowedOrigins = [
   "https://studiopulse.co",
   "https://www.studiopulse.co",
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
   "http://localhost:3000",
   "http://127.0.0.1:3000",
 ];

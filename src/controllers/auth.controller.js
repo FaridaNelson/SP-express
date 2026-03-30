@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
@@ -345,4 +346,78 @@ export async function logout(_req, res) {
   });
 
   return res.json({ ok: true });
+}
+
+function sendResetEmail(user, rawToken) {
+  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+  const resetUrl = `${frontendUrl}/reset-password?token=${rawToken}`;
+  console.log(`[DEV] Password reset link for ${user.email}: ${resetUrl}`);
+}
+
+export async function forgotPassword(req, res, next) {
+  try {
+    const { email } = req.body || {};
+
+    if (!email) {
+      return res.json({ message: "ok" });
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    const user = await User.findOne({ email: normalizedEmail });
+
+    if (user) {
+      const rawToken = crypto.randomBytes(32).toString("hex");
+      const hashedToken = crypto
+        .createHash("sha256")
+        .update(rawToken)
+        .digest("hex");
+
+      user.passwordResetToken = hashedToken;
+      user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000);
+      await user.save();
+
+      sendResetEmail(user, rawToken);
+    }
+
+    return res.json({ message: "ok" });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function resetPassword(req, res, next) {
+  try {
+    const { token, newPassword } = req.body || {};
+
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: "Token and new password are required" });
+    }
+
+    if (String(newPassword).length < 8) {
+      return res.status(400).json({ error: "Password must be at least 8 characters" });
+    }
+
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(String(token))
+      .digest("hex");
+
+    const user = await User.findOne({
+      passwordResetToken: hashedToken,
+      passwordResetExpires: { $gt: new Date() },
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: "Invalid or expired token" });
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword, 12);
+    user.passwordResetToken = null;
+    user.passwordResetExpires = null;
+    await user.save();
+
+    return res.json({ message: "Password updated" });
+  } catch (err) {
+    next(err);
+  }
 }
