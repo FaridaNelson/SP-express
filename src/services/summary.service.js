@@ -37,6 +37,8 @@ export async function recomputeExamCycleSummary(cycleId, options = {}) {
 
   const scoreEntries = await ScoreEntry.find({
     studentId: cycle.studentId,
+    examPreparationCycleId: cycle._id,
+    instrument: cycle.instrument,
     archivedAt: null,
     elementId: { $in: requiredElements },
   })
