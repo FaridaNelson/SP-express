@@ -3,6 +3,7 @@ import TeacherStudentAccess from "../models/TeacherStudentAccess.js";
 import Student from "../models/Student.js";
 import User from "../models/User.js";
 import AuditLog from "../models/AuditLog.js";
+import StudentDashboardSummary from "../models/StudentDashboardSummary.js";
 import { recomputeStudentDashboardSummary } from "../services/summary.service.js";
 
 function createHttpError(status, message) {
@@ -585,18 +586,30 @@ export async function listStudentsForTeacher(req, res, next) {
       .sort({ instrument: 1, role: 1, startedAt: -1 })
       .lean();
 
-    const students = accessRows
-      .filter((row) => row.studentId)
-      .map((row) => ({
-        accessId: row._id,
-        instrument: row.instrument,
-        role: row.role,
-        status: row.status,
-        startedAt: row.startedAt,
-        endedAt: row.endedAt,
-        note: row.note,
-        student: row.studentId,
-      }));
+    const filtered = accessRows.filter((row) => row.studentId);
+
+    const studentIds = filtered.map((row) => row.studentId._id);
+    const summaries = await StudentDashboardSummary.find({
+      studentId: { $in: studentIds },
+    })
+      .select("studentId activeCycleProgressPercent activeCycleStatus")
+      .lean();
+
+    const summaryMap = new Map(
+      summaries.map((s) => [s.studentId.toString(), s])
+    );
+
+    const students = filtered.map((row) => ({
+      accessId: row._id,
+      instrument: row.instrument,
+      role: row.role,
+      status: row.status,
+      startedAt: row.startedAt,
+      endedAt: row.endedAt,
+      note: row.note,
+      student: row.studentId,
+      summary: summaryMap.get(row.studentId._id.toString()) ?? null,
+    }));
 
     return res.json({ students });
   } catch (err) {
