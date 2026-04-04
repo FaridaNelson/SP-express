@@ -54,9 +54,9 @@ const auditLogSchema = new mongoose.Schema(
 
     ipAddress: String,
     userAgent: String,
-    timestamp: { type: Date, default: Date.now, index: true },
+    timestamp: { type: Date, default: Date.now },
   },
-  { timestamps: { type: Date, default: Date.now } },
+  { timestamps: true },
 );
 
 // Auto-expire logs after 2 years (optional, for GDPR compliance)
