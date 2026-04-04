@@ -70,6 +70,8 @@ const progressSummarySchema = new mongoose.Schema(
       max: 100,
     },
 
+    readinessScore: { type: Number, default: 0 },
+
     scoreEntryCount: {
       type: Number,
       default: 0,

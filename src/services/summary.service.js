@@ -85,6 +85,25 @@ export async function recomputeExamCycleSummary(cycleId, options = {}) {
       ? roundToTwo((completedElements.length / requiredElements.length) * 100)
       : 0;
 
+  // Weighted readiness (same formula as the frontend donut)
+  const WEIGHTS = {
+    pieceA: 20, pieceB: 20, pieceC: 20, pieceD: 20,
+    scales: 14, sightReading: 14, auralTraining: 12,
+  };
+
+  const weightedSum = requiredElements.reduce((sum, id) => {
+    const score = latestScores[id] ?? 0;
+    return sum + score * (WEIGHTS[id] || 0);
+  }, 0);
+
+  const totalWeight = requiredElements.reduce((sum, id) => {
+    return sum + (WEIGHTS[id] || 0);
+  }, 0);
+
+  const readinessScore = totalWeight > 0
+    ? roundToTwo(weightedSum / totalWeight)
+    : 0;
+
   const averageScore =
     scoredCount > 0 ? roundToTwo(scoreSum / scoredCount) : null;
 
@@ -101,6 +120,7 @@ export async function recomputeExamCycleSummary(cycleId, options = {}) {
     requiredElements,
     completedElements,
     completionPercent: completionPercent ?? 0,
+    readinessScore,
     scoreEntryCount: scoreEntries.length,
     averageScore,
     latestScores,
@@ -191,7 +211,7 @@ export async function recomputeStudentDashboardSummary(
         scoreEntryCount,
         activeCycleStatus: cycle?.status || "",
         activeCycleProgressPercent:
-          cycle?.progressSummary?.completionPercent ?? 0,
+          cycle?.progressSummary?.readinessScore ?? 0,
         activeCycleAverageScore: cycle?.progressSummary?.averageScore ?? null,
         updatedAt: new Date(),
       },
