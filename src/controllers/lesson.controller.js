@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Lesson from "../models/Lesson.js";
 import ExamPreparationCycle from "../models/ExamPreparationCycle.js";
 import AuditLog from "../models/AuditLog.js";
@@ -231,7 +232,13 @@ export async function getLessonById(req, res, next) {
 export async function listLessonsForStudent(req, res, next) {
   try {
     const { studentId } = req.params;
-    const { examPreparationCycleId, instrument } = req.query;
+    const { examPreparationCycleId, cycleId, instrument } = req.query;
+
+    const effectiveCycleId = cycleId || examPreparationCycleId;
+
+    if (effectiveCycleId && !mongoose.Types.ObjectId.isValid(effectiveCycleId)) {
+      return res.status(400).json({ error: "Invalid cycleId" });
+    }
 
     if (instrument) {
       parseEnum(instrument, ALLOWED_INSTRUMENTS, "instrument");
@@ -245,8 +252,8 @@ export async function listLessonsForStudent(req, res, next) {
       archivedAt: null,
     };
 
-    if (examPreparationCycleId) {
-      query.examPreparationCycleId = examPreparationCycleId;
+    if (effectiveCycleId) {
+      query.examPreparationCycleId = effectiveCycleId;
     }
 
     if (instrument) {

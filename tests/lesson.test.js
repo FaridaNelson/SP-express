@@ -217,6 +217,64 @@ describe("Lesson API", () => {
       expect(res.body.error).toMatch(/Invalid instrument/);
     });
 
+    it("filters lessons by cycleId query param", async () => {
+      const cycleA = cycle;
+      const cycleB = await createTestExamCycle(student._id, teacher._id, {
+        examGrade: 4,
+      });
+
+      // 2 lessons for cycleA
+      await request(app)
+        .put("/api/lessons")
+        .set("Authorization", `Bearer ${token}`)
+        .send({
+          ...validLesson(),
+          examPreparationCycleId: cycleA._id.toString(),
+          lessonStartAt: "2026-03-20T10:00:00Z",
+        });
+      await request(app)
+        .put("/api/lessons")
+        .set("Authorization", `Bearer ${token}`)
+        .send({
+          ...validLesson(),
+          examPreparationCycleId: cycleA._id.toString(),
+          lessonDate: "2026-03-21",
+          lessonStartAt: "2026-03-21T10:00:00Z",
+          lessonEndAt: "2026-03-21T11:00:00Z",
+        });
+
+      // 1 lesson for cycleB
+      await request(app)
+        .put("/api/lessons")
+        .set("Authorization", `Bearer ${token}`)
+        .send({
+          ...validLesson(),
+          examPreparationCycleId: cycleB._id.toString(),
+          lessonDate: "2026-03-22",
+          lessonStartAt: "2026-03-22T10:00:00Z",
+          lessonEndAt: "2026-03-22T11:00:00Z",
+        });
+
+      const res = await request(app)
+        .get(`/api/lessons/student/${student._id}?cycleId=${cycleA._id}`)
+        .set("Authorization", `Bearer ${token}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.lessons).toHaveLength(2);
+      for (const lesson of res.body.lessons) {
+        expect(lesson.examPreparationCycleId).toBe(cycleA._id.toString());
+      }
+    });
+
+    it("returns 400 for invalid cycleId", async () => {
+      const res = await request(app)
+        .get(`/api/lessons/student/${student._id}?cycleId=not-a-valid-objectid`)
+        .set("Authorization", `Bearer ${token}`);
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/Invalid cycleId/);
+    });
+
     it("excludes archived lessons", async () => {
       const createRes = await request(app)
         .put("/api/lessons")
