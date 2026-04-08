@@ -8,6 +8,7 @@ import {
   getParentStudentProgressHistory,
   getParentStudentCycles,
 } from "../controllers/parent.controller.js";
+import { upsertPracticeLog } from "../controllers/practiceLog.controller.js";
 
 const router = Router();
 
@@ -18,5 +19,6 @@ router.get("/students", getParentStudents);
 router.get("/students/:id/cycles", validateObjectId("id"), getParentStudentCycles);
 router.get("/students/:id/progress", validateObjectId("id"), getParentStudentProgress);
 router.get("/students/:id/progress/history", validateObjectId("id"), getParentStudentProgressHistory);
+router.post("/students/:id/practice-log", validateObjectId("id"), upsertPracticeLog);
 
 export default router;
