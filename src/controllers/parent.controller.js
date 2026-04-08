@@ -1,4 +1,5 @@
 import Student from "../models/Student.js";
+import ExamPreparationCycle from "../models/ExamPreparationCycle.js";
 import ScoreEntry from "../models/ScoreEntry.js";
 import AuditLog from "../models/AuditLog.js";
 import { DEFAULT_PROGRESS_ITEMS } from "../constants/progressItems.js";
@@ -36,7 +37,10 @@ export async function getParentStudents(req, res, next) {
       .select(
         "_id firstName lastName name email instrument grade teacherId parent parentIds studentUserId activeExamCycleId",
       )
-      .populate("activeExamCycleId", "examType status startDate endDate instrument")
+      .populate(
+        "activeExamCycleId",
+        "examType status startDate endDate instrument",
+      )
       .sort({ createdAt: 1 })
       .lean();
 
@@ -75,13 +79,13 @@ export async function getParentStudentProgress(req, res, next) {
     }
 
     const ELEMENT_META = {
-      pieceA:        { label: "Piece 1",        weight: 20 },
-      pieceB:        { label: "Piece 2",        weight: 20 },
-      pieceC:        { label: "Piece 3",        weight: 20 },
-      pieceD:        { label: "Piece 4",        weight: 20 },
-      scales:        { label: "Scales",         weight: 14 },
-      sightReading:  { label: "Sight-Reading",  weight: 14 },
-      auralTraining: { label: "Aural",          weight: 12 },
+      pieceA: { label: "Piece A", weight: 20 },
+      pieceB: { label: "Piece B", weight: 20 },
+      pieceC: { label: "Piece C", weight: 20 },
+      pieceD: { label: "Piece D", weight: 20 },
+      scales: { label: "Scales", weight: 14 },
+      sightReading: { label: "Sight-Reading", weight: 14 },
+      auralTraining: { label: "Aural", weight: 12 },
     };
 
     const cycle = student.activeExamCycleId;
@@ -91,10 +95,10 @@ export async function getParentStudentProgress(req, res, next) {
 
       const items = (requiredElements ?? Object.keys(latestScores)).map(
         (elementId) => ({
-          id:     elementId,
-          label:  ELEMENT_META[elementId]?.label  ?? elementId,
+          id: elementId,
+          label: ELEMENT_META[elementId]?.label ?? elementId,
           weight: ELEMENT_META[elementId]?.weight ?? 0,
-          score:  latestScores[elementId]         ?? 0,
+          score: latestScores[elementId] ?? 0,
         }),
       );
 
@@ -107,6 +111,41 @@ export async function getParentStudentProgress(req, res, next) {
         ? student.progressItems
         : DEFAULT_PROGRESS_ITEMS,
     });
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function getParentStudentCycles(req, res, next) {
+  try {
+    const { id } = req.params;
+    const adminBypass = isAdmin(req);
+
+    const student = await Student.findById(id).select("_id parentIds").lean();
+
+    if (!student) {
+      return res.status(404).json({ error: "Student not found" });
+    }
+
+    if (
+      !adminBypass &&
+      !student.parentIds?.some((pid) => pid.toString() === getParentId(req).toString())
+    ) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    if (adminBypass) {
+      await logAdminParentAccess(req, "ADMIN_VIEW_STUDENT_CYCLES", id);
+    }
+
+    const cycles = await ExamPreparationCycle.find({ studentId: id })
+      .select(
+        "_id instrument examGrade examType status examTaken createdAt updatedAt",
+      )
+      .sort({ endDate: -1 })
+      .lean();
+
+    return res.json({ cycles });
   } catch (e) {
     next(e);
   }
@@ -146,19 +185,26 @@ export async function getParentStudentProgressHistory(req, res, next) {
 
     // Weights mirror the frontend ELEMENT_META
     const WEIGHTS = {
-      pieceA:        20,
-      pieceB:        20,
-      pieceC:        20,
-      pieceD:        20,
-      scales:        14,
-      sightReading:  14,
+      pieceA: 20,
+      pieceB: 20,
+      pieceC: 20,
+      pieceD: 20,
+      scales: 14,
+      sightReading: 14,
       auralTraining: 12,
     };
 
     const requiredElements =
       cycle.examType === "Performance"
         ? ["pieceA", "pieceB", "pieceC", "pieceD"]
-        : ["pieceA", "pieceB", "pieceC", "scales", "sightReading", "auralTraining"];
+        : [
+            "pieceA",
+            "pieceB",
+            "pieceC",
+            "scales",
+            "sightReading",
+            "auralTraining",
+          ];
 
     const totalWeight = requiredElements.reduce(
       (sum, id) => sum + (WEIGHTS[id] ?? 0),
@@ -186,15 +232,16 @@ export async function getParentStudentProgressHistory(req, res, next) {
       const key = entry.lessonDate
         ? new Date(entry.lessonDate).toISOString().slice(0, 10)
         : "unknown";
-      if (!byDate.has(key)) byDate.set(key, { date: entry.lessonDate, scores: {} });
+      if (!byDate.has(key))
+        byDate.set(key, { date: entry.lessonDate, scores: {} });
       // Keep only the latest entry per element per lesson
       byDate.get(key).scores[entry.elementId] = entry.score;
     }
 
     // Build cumulative snapshot: carry forward scores from previous lessons
-    const dates     = [...byDate.keys()].sort();
-    const running   = {};   // latest known score per element
-    const history   = [];
+    const dates = [...byDate.keys()].sort();
+    const running = {}; // latest known score per element
+    const history = [];
 
     dates.forEach((key, index) => {
       const { date, scores } = byDate.get(key);
@@ -207,14 +254,13 @@ export async function getParentStudentProgressHistory(req, res, next) {
         return sum + (running[elId] ?? 0) * (WEIGHTS[elId] ?? 0);
       }, 0);
 
-      const readiness = totalWeight > 0
-        ? Math.round(weightedSum / totalWeight)
-        : 0;
+      const readiness =
+        totalWeight > 0 ? Math.round(weightedSum / totalWeight) : 0;
 
-      const d           = date ? new Date(date) : new Date(key);
+      const d = date ? new Date(date) : new Date(key);
       const lessonLabel = `L${index + 1}`;
-      const dateLabel   = d.toLocaleDateString("en-GB", {
-        day:   "numeric",
+      const dateLabel = d.toLocaleDateString("en-GB", {
+        day: "numeric",
         month: "short",
       });
 

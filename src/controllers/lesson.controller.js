@@ -9,6 +9,7 @@ import {
 } from "../services/access.service.js";
 import { recomputeStudentReadModels } from "../services/summary.service.js";
 import { parseEnum, ALLOWED_INSTRUMENTS } from "../utils/queryParams.js";
+import Student from "../models/Student.js";
 
 function createHttpError(status, message) {
   const err = new Error(message);
@@ -240,11 +241,23 @@ export async function listLessonsForStudent(req, res, next) {
       return res.status(400).json({ error: "Invalid cycleId" });
     }
 
-    if (instrument) {
-      parseEnum(instrument, ALLOWED_INSTRUMENTS, "instrument");
-      await assertTeacherCanView(req.user._id, studentId, instrument);
-    } else {
-      await assertTeacherHasAnyAccess(req.user._id, studentId);
+    // Parent ownership guard — parents may only view their own children's lessons
+    if (req.user.role === "parent") {
+      const student = await Student.findById(studentId);
+      if (!student) return res.status(404).json({ message: "Student not found" });
+      const isLinked = student.parentIds?.some(
+        (id) => id.toString() === req.user._id.toString()
+      );
+      if (!isLinked) return res.status(403).json({ message: "Access denied" });
+    }
+
+    if (req.user.role !== "parent") {
+      if (instrument) {
+        parseEnum(instrument, ALLOWED_INSTRUMENTS, "instrument");
+        await assertTeacherCanView(req.user._id, studentId, instrument);
+      } else {
+        await assertTeacherHasAnyAccess(req.user._id, studentId);
+      }
     }
 
     const query = {
