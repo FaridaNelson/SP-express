@@ -59,6 +59,7 @@ Commit `b966918` correctly converts 403 → 404 for `getExamCycleById` and `getL
 **Files:** All controllers consuming `req.params.studentId`, `req.params.cycleId`, `req.params.lessonId`, `req.params.accessId`
 **Issue:** An invalid ObjectId string (e.g., `"not-an-id"`) triggers a Mongoose `CastError`, which the global error handler may surface as a 500 instead of a clean 400.
 **Recommendation:** Add a shared middleware or helper:
+
 ```js
 const mongoose = require("mongoose");
 function validateObjectId(paramName) {
@@ -94,12 +95,12 @@ function validateObjectId(paramName) {
 
 ### 4.1 Rate Limiting
 
-| Current State | Recommendation |
-|---------------|----------------|
-| Auth routes: 15 req / 15 min | Keep |
-| All other routes: **no limit** | Add global authenticated limit (100 req/min per user) |
-| Write endpoints (POST/PUT/PATCH): **no limit** | Add stricter limit (20 req/min per user) |
-| `/api/auth/me` (optionalAuth, no limit) | Add limit or require auth — can be used for token-validity probing |
+| Current State                                  | Recommendation                                                     |
+| ---------------------------------------------- | ------------------------------------------------------------------ |
+| Auth routes: 15 req / 15 min                   | Keep                                                               |
+| All other routes: **no limit**                 | Add global authenticated limit (100 req/min per user)              |
+| Write endpoints (POST/PUT/PATCH): **no limit** | Add stricter limit (20 req/min per user)                           |
+| `/api/auth/me` (optionalAuth, no limit)        | Add limit or require auth — can be used for token-validity probing |
 
 ### 4.2 Summary Recomputation DoS Vector
 
@@ -110,11 +111,11 @@ function validateObjectId(paramName) {
 
 ### 4.3 Secrets Management
 
-| Issue | Severity | Action |
-|-------|----------|--------|
-| MongoDB credentials in `.env` plaintext | CRITICAL | Rotate if ever committed; use secrets manager |
-| JWT fallback `"dev_secret_change_me"` | CRITICAL | Remove fallback; require `JWT_SECRET` in all environments |
-| `JWT_SECRET="some-crazy-random-string"` | HIGH | Replace with cryptographically random 256-bit key |
+| Issue                                   | Severity | Action                                                    |
+| --------------------------------------- | -------- | --------------------------------------------------------- |
+| MongoDB credentials in `.env` plaintext | CRITICAL | Rotate if ever committed; use secrets manager             |
+| JWT fallback `"dev_secret_change_me"`   | CRITICAL | Remove fallback; require `JWT_SECRET` in all environments |
+| `JWT_SECRET="some-crazy-random-string"` | HIGH     | Replace with cryptographically random 256-bit key         |
 
 ### 4.4 Dependency Hygiene
 
@@ -138,13 +139,13 @@ function validateObjectId(paramName) {
 
 ## Findings Summary
 
-| Severity | Count | Key Areas |
-|----------|-------|-----------|
-| CRITICAL | 2 | Secrets in `.env`, JWT fallback |
-| HIGH | 4 | Admin granularity, field validation, ObjectId validation, rate limiting gaps |
-| MEDIUM | 4 | NoSQL injection, query parsing, ID comparison types, parent access scope |
-| LOW | 1 | Bcrypt cost inconsistency |
-| INFO | 1 | BOLA/IDOR protection (positive) |
+| Severity | Count | Key Areas                                                                    |
+| -------- | ----- | ---------------------------------------------------------------------------- |
+| CRITICAL | 2     | Secrets in `.env`, JWT fallback                                              |
+| HIGH     | 4     | Admin granularity, field validation, ObjectId validation, rate limiting gaps |
+| MEDIUM   | 4     | NoSQL injection, query parsing, ID comparison types, parent access scope     |
+| LOW      | 1     | Bcrypt cost inconsistency                                                    |
+| INFO     | 1     | BOLA/IDOR protection (positive)                                              |
 
 ## Priority Actions
 
@@ -155,4 +156,4 @@ function validateObjectId(paramName) {
 
 ---
 
-*Generated 2026-03-22 — Automated Security Audit*
+_Generated 2026-03-22 — Automated Security Audit_
