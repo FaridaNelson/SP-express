@@ -60,7 +60,8 @@ export async function getParentStudentProgress(req, res, next) {
       : { _id: id, parentIds: getParentId(req) };
 
     const student = await Student.findOne(query)
-      .select("_id progressItems")
+      .select("_id progressItems activeExamCycleId")
+      .populate("activeExamCycleId", "progressSummary examType")
       .lean();
 
     // Returns 404 (not 403) for unlinked students — consistent with BOLA pattern
@@ -72,6 +73,34 @@ export async function getParentStudentProgress(req, res, next) {
       await logAdminParentAccess(req, "ADMIN_VIEW_STUDENT_PROGRESS", id);
     }
 
+    const ELEMENT_META = {
+      pieceA:        { label: "Piece 1",        weight: 20 },
+      pieceB:        { label: "Piece 2",        weight: 20 },
+      pieceC:        { label: "Piece 3",        weight: 20 },
+      pieceD:        { label: "Piece 4",        weight: 20 },
+      scales:        { label: "Scales",         weight: 14 },
+      sightReading:  { label: "Sight-Reading",  weight: 14 },
+      auralTraining: { label: "Aural",          weight: 12 },
+    };
+
+    const cycle = student.activeExamCycleId;
+
+    if (cycle?.progressSummary?.latestScores) {
+      const { latestScores, requiredElements } = cycle.progressSummary;
+
+      const items = (requiredElements ?? Object.keys(latestScores)).map(
+        (elementId) => ({
+          id:     elementId,
+          label:  ELEMENT_META[elementId]?.label  ?? elementId,
+          weight: ELEMENT_META[elementId]?.weight ?? 0,
+          score:  latestScores[elementId]         ?? 0,
+        }),
+      );
+
+      return res.json({ items });
+    }
+
+    // Fallback: no active cycle or progressSummary not yet computed
     return res.json({
       items: student.progressItems?.length
         ? student.progressItems
