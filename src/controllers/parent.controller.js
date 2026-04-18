@@ -151,6 +151,48 @@ export async function getParentStudentCycles(req, res, next) {
   }
 }
 
+export async function linkStudentByInviteCode(req, res, next) {
+  try {
+    const { inviteCode } = req.body;
+
+    if (!inviteCode || typeof inviteCode !== "string") {
+      return res.status(400).json({ error: "inviteCode is required" });
+    }
+
+    const student = await Student.findOne({
+      inviteCode: inviteCode.toUpperCase(),
+    }).lean();
+
+    if (!student) {
+      return res.status(404).json({ error: "Invalid invite code" });
+    }
+
+    const parentId = getParentId(req);
+
+    if (student.parentIds?.some((pid) => pid.toString() === parentId.toString())) {
+      return res.status(409).json({ error: "Already linked to this student" });
+    }
+
+    await Student.updateOne(
+      { _id: student._id },
+      { $addToSet: { parentIds: parentId } },
+    );
+
+    return res.json({
+      student: {
+        _id: student._id,
+        firstName: student.firstName,
+        lastName: student.lastName,
+        name: student.name,
+        grade: student.grade,
+        instrument: student.instrument,
+      },
+    });
+  } catch (e) {
+    next(e);
+  }
+}
+
 export async function getParentStudentProgressHistory(req, res, next) {
   try {
     const { id } = req.params;

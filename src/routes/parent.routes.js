@@ -7,6 +7,7 @@ import {
   getParentStudentProgress,
   getParentStudentProgressHistory,
   getParentStudentCycles,
+  linkStudentByInviteCode,
 } from "../controllers/parent.controller.js";
 import { upsertPracticeLog } from "../controllers/practiceLog.controller.js";
 
@@ -15,6 +16,7 @@ const router = Router();
 router.use(requireAuth);
 router.use(requireRole("parent", "admin"));
 
+router.post("/link-student", linkStudentByInviteCode);
 router.get("/students", getParentStudents);
 router.get("/students/:id/cycles", validateObjectId("id"), getParentStudentCycles);
 router.get("/students/:id/progress", validateObjectId("id"), getParentStudentProgress);
