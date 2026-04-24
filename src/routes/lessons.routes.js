@@ -8,6 +8,7 @@ import {
   listLessonsForStudent,
   getLatestLessonForStudent,
   archiveLesson,
+  updateLesson,
 } from "../controllers/lesson.controller.js";
 
 const router = express.Router();
@@ -33,6 +34,13 @@ router.get(
   validateObjectId("lessonId"),
   getLessonById,
 );
+router.patch(
+  "/:lessonId",
+  requireRole("teacher", "admin"),
+  validateObjectId("lessonId"),
+  updateLesson,
+);
+
 router.delete(
   "/:lessonId",
   requireRole("teacher", "admin"),
