@@ -57,6 +57,14 @@ function computeLessonTotalScore({
   scales = {},
   sightReading = {},
   auralTraining = {},
+  requiredElements = [
+    "scales",
+    "pieceA",
+    "pieceB",
+    "pieceC",
+    "sightReading",
+    "auralTraining",
+  ],
 }) {
   const pieceMap = Object.fromEntries(
     (Array.isArray(pieces) ? pieces : []).map((piece) => [
@@ -65,7 +73,7 @@ function computeLessonTotalScore({
     ]),
   );
 
-  const scoreByItemId = {
+  const scores = {
     scales: isFiniteNumber(scales?.percent) ? scales.percent : 0,
     pieceA: isFiniteNumber(pieceMap.pieceA?.percent)
       ? pieceMap.pieceA.percent
@@ -76,21 +84,38 @@ function computeLessonTotalScore({
     pieceC: isFiniteNumber(pieceMap.pieceC?.percent)
       ? pieceMap.pieceC.percent
       : 0,
+    pieceD: isFiniteNumber(pieceMap.pieceD?.percent)
+      ? pieceMap.pieceD.percent
+      : 0,
     sightReading: isFiniteNumber(sightReading?.score) ? sightReading.score : 0,
     auralTraining: isFiniteNumber(auralTraining?.score)
       ? auralTraining.score
       : 0,
   };
 
-  const weightedTotal =
-    clampScore(scoreByItemId.scales) * 14 +
-    clampScore(scoreByItemId.pieceA) * 20 +
-    clampScore(scoreByItemId.pieceB) * 20 +
-    clampScore(scoreByItemId.pieceC) * 20 +
-    clampScore(scoreByItemId.sightReading) * 14 +
-    clampScore(scoreByItemId.auralTraining) * 12;
+  const weights = {
+    scales: 14,
+    pieceA: 20,
+    pieceB: 20,
+    pieceC: 20,
+    pieceD: 20,
+    sightReading: 14,
+    auralTraining: 12,
+  };
 
-  return clampScore(weightedTotal / 100);
+  const totalWeight = requiredElements.reduce(
+    (sum, id) => sum + (weights[id] || 0),
+    0,
+  );
+
+  if (!totalWeight) return 0;
+
+  const weightedTotal = requiredElements.reduce(
+    (sum, id) => sum + clampScore(scores[id] || 0) * (weights[id] || 0),
+    0,
+  );
+
+  return clampScore(weightedTotal / totalWeight);
 }
 
 async function validateCycleForLesson({
@@ -162,6 +187,18 @@ export async function updateLesson(req, res, next) {
       return res.status(400).json({ error: "Invalid lessonStartAt" });
     }
 
+    const cycle = await ExamPreparationCycle.findById(
+      lesson.examPreparationCycleId || examPreparationCycleId,
+    ).lean();
+
+    const requiredElements = cycle?.progressSummary?.requiredElements || [
+      "scales",
+      "pieceA",
+      "pieceB",
+      "pieceC",
+      "sightReading",
+      "auralTraining",
+    ];
     const parsedLessonEndAt = lessonEndAt
       ? normalizeDateTime(lessonEndAt)
       : null;
@@ -199,6 +236,7 @@ export async function updateLesson(req, res, next) {
       scales: normalizedScales,
       sightReading,
       auralTraining,
+      requiredElements,
     });
 
     await lesson.save();
@@ -268,6 +306,19 @@ export async function upsertLesson(req, res, next) {
       return res.status(400).json({ error: "Invalid lessonDate" });
     }
 
+    const cycle = await ExamPreparationCycle.findById(
+      lesson.examPreparationCycleId || examPreparationCycleId,
+    ).lean();
+
+    const requiredElements = cycle?.progressSummary?.requiredElements || [
+      "scales",
+      "pieceA",
+      "pieceB",
+      "pieceC",
+      "sightReading",
+      "auralTraining",
+    ];
+
     const parsedLessonStartAt = normalizeDateTime(lessonStartAt);
     if (!parsedLessonStartAt) {
       return res.status(400).json({ error: "Invalid lessonStartAt" });
@@ -305,6 +356,7 @@ export async function upsertLesson(req, res, next) {
       scales: normalizedScales,
       sightReading,
       auralTraining,
+      requiredElements,
     });
 
     const lesson = await Lesson.findOneAndUpdate(
