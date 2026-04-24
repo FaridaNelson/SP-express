@@ -124,6 +124,110 @@ async function validateCycleForLesson({
 
   return cycle;
 }
+export async function updateLesson(req, res, next) {
+  try {
+    const { lessonId } = req.params;
+    const teacherId = req.user._id;
+
+    const lesson = await Lesson.findOne({
+      _id: lessonId,
+      createdByTeacherId: teacherId,
+      archivedAt: null,
+    });
+
+    if (!lesson) {
+      return res.status(404).json({ error: "Lesson not found" });
+    }
+
+    const {
+      lessonDate,
+      lessonStartAt,
+      lessonEndAt = null,
+      lessonType = lesson.lessonType,
+      share = lesson.share,
+      pieces = lesson.pieces,
+      scales = lesson.scales,
+      sightReading = lesson.sightReading,
+      auralTraining = lesson.auralTraining,
+      teacherNarrative = lesson.teacherNarrative,
+    } = req.body || {};
+
+    const parsedLessonDate = normalizeDateOnly(lessonDate);
+    if (!parsedLessonDate) {
+      return res.status(400).json({ error: "Invalid lessonDate" });
+    }
+
+    const parsedLessonStartAt = normalizeDateTime(lessonStartAt);
+    if (!parsedLessonStartAt) {
+      return res.status(400).json({ error: "Invalid lessonStartAt" });
+    }
+
+    const parsedLessonEndAt = lessonEndAt
+      ? normalizeDateTime(lessonEndAt)
+      : null;
+
+    if (lessonEndAt && !parsedLessonEndAt) {
+      return res.status(400).json({ error: "Invalid lessonEndAt" });
+    }
+
+    if (
+      parsedLessonEndAt &&
+      parsedLessonEndAt.getTime() <= parsedLessonStartAt.getTime()
+    ) {
+      return res.status(400).json({
+        error: "lessonEndAt must be later than lessonStartAt",
+      });
+    }
+
+    await assertTeacherCanEdit(teacherId, lesson.studentId, lesson.instrument);
+
+    const normalizedScales = normalizeScales(scales);
+    const normalizedPieces = Array.isArray(pieces) ? pieces : [];
+
+    lesson.lessonDate = parsedLessonDate;
+    lesson.lessonStartAt = parsedLessonStartAt;
+    lesson.lessonEndAt = parsedLessonEndAt;
+    lesson.lessonType = lessonType;
+    lesson.share = !!share;
+    lesson.pieces = normalizedPieces;
+    lesson.scales = normalizedScales;
+    lesson.sightReading = sightReading;
+    lesson.auralTraining = auralTraining;
+    lesson.teacherNarrative = teacherNarrative;
+    lesson.lessonTotalScore = computeLessonTotalScore({
+      pieces: normalizedPieces,
+      scales: normalizedScales,
+      sightReading,
+      auralTraining,
+    });
+
+    await lesson.save();
+    await recomputeStudentReadModels(lesson.studentId);
+
+    await AuditLog.create({
+      actorUserId: teacherId,
+      actorRoles: Array.isArray(req.user.roles) ? req.user.roles : [],
+      action: "UPDATE_LESSON",
+      targetType: "Lesson",
+      targetId: lesson._id,
+      studentId: lesson.studentId,
+      metadata: {
+        examPreparationCycleId: lesson.examPreparationCycleId,
+        instrument: lesson.instrument,
+        lessonDate: parsedLessonDate,
+        lessonStartAt: parsedLessonStartAt,
+        lessonEndAt: parsedLessonEndAt,
+        lessonType,
+      },
+      ipAddress: req.ip,
+      userAgent: req.get("user-agent") || "",
+    });
+
+    return res.json({ lesson });
+  } catch (err) {
+    next(err);
+  }
+}
 
 export async function upsertLesson(req, res, next) {
   try {
