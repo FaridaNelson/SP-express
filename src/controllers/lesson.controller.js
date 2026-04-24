@@ -30,6 +30,28 @@ function normalizeDateTime(value) {
   return date;
 }
 
+function getRequiredElementsForCycle(cycle) {
+  if (
+    Array.isArray(cycle?.progressSummary?.requiredElements) &&
+    cycle.progressSummary.requiredElements.length > 0
+  ) {
+    return cycle.progressSummary.requiredElements;
+  }
+
+  if (cycle?.examType === "Performance") {
+    return ["pieceA", "pieceB", "pieceC", "pieceD"];
+  }
+
+  return [
+    "scales",
+    "pieceA",
+    "pieceB",
+    "pieceC",
+    "sightReading",
+    "auralTraining",
+  ];
+}
+
 function normalizeScales(scales = {}) {
   return {
     percent: typeof scales?.percent === "number" ? scales.percent : 0,
@@ -128,7 +150,9 @@ async function validateCycleForLesson({
   }
 
   const cycle = await ExamPreparationCycle.findById(examPreparationCycleId)
-    .select("_id studentId instrument status archivedAt")
+    .select(
+      "_id studentId instrument status cycleStatus examType progressSummary archivedAt",
+    )
     .lean();
 
   if (!cycle) {
@@ -191,14 +215,8 @@ export async function updateLesson(req, res, next) {
       lesson.examPreparationCycleId || examPreparationCycleId,
     ).lean();
 
-    const requiredElements = cycle?.progressSummary?.requiredElements || [
-      "scales",
-      "pieceA",
-      "pieceB",
-      "pieceC",
-      "sightReading",
-      "auralTraining",
-    ];
+    const requiredElements = getRequiredElementsForCycle(cycle);
+
     const parsedLessonEndAt = lessonEndAt
       ? normalizeDateTime(lessonEndAt)
       : null;
@@ -310,14 +328,7 @@ export async function upsertLesson(req, res, next) {
       lesson.examPreparationCycleId || examPreparationCycleId,
     ).lean();
 
-    const requiredElements = cycle?.progressSummary?.requiredElements || [
-      "scales",
-      "pieceA",
-      "pieceB",
-      "pieceC",
-      "sightReading",
-      "auralTraining",
-    ];
+    const requiredElements = getRequiredElementsForCycle(cycle);
 
     const parsedLessonStartAt = normalizeDateTime(lessonStartAt);
     if (!parsedLessonStartAt) {
