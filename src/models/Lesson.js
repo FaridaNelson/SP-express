@@ -12,6 +12,12 @@ const lessonCriterionSchema = new mongoose.Schema(
 const lessonPieceSchema = new mongoose.Schema(
   {
     pieceId: { type: String, required: true },
+    status: {
+      type: String,
+      enum: ["not_covered", "copied", "graded"],
+      default: "not_covered",
+      required: true,
+    },
     percent: { type: Number, min: 0, max: 100, default: 0 },
     criteria: { type: [lessonCriterionSchema], default: [] },
   },
@@ -100,7 +106,20 @@ const lessonSchema = new mongoose.Schema(
     sightReading: { type: noteBlockSchema, default: null },
     auralTraining: { type: noteBlockSchema, default: null },
 
-    teacherNarrative: { type: String, default: null, trim: true, maxlength: 2000 },
+    teacherNarrative: {
+      type: String,
+      default: null,
+      trim: true,
+      maxlength: 2000,
+    },
+
+    lessonTotalScore: {
+      type: Number,
+      min: 0,
+      max: 100,
+      default: null,
+      index: true,
+    },
 
     archivedAt: { type: Date, default: null, index: true },
   },

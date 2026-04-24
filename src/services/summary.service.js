@@ -87,8 +87,13 @@ export async function recomputeExamCycleSummary(cycleId, options = {}) {
 
   // Weighted readiness (same formula as the frontend donut)
   const WEIGHTS = {
-    pieceA: 20, pieceB: 20, pieceC: 20, pieceD: 20,
-    scales: 14, sightReading: 14, auralTraining: 12,
+    pieceA: 20,
+    pieceB: 20,
+    pieceC: 20,
+    pieceD: 20,
+    scales: 14,
+    sightReading: 14,
+    auralTraining: 12,
   };
 
   const weightedSum = requiredElements.reduce((sum, id) => {
@@ -100,15 +105,16 @@ export async function recomputeExamCycleSummary(cycleId, options = {}) {
     return sum + (WEIGHTS[id] || 0);
   }, 0);
 
-  const readinessScore = totalWeight > 0
-    ? roundToTwo(weightedSum / totalWeight)
-    : 0;
+  const readinessScore =
+    totalWeight > 0 ? roundToTwo(weightedSum / totalWeight) : 0;
 
   const averageScore =
     scoredCount > 0 ? roundToTwo(scoreSum / scoredCount) : null;
 
   const latestLesson = await Lesson.findOne({
     studentId: cycle.studentId,
+    examPreparationCycleId: cycle._id,
+    instrument: cycle.instrument,
     archivedAt: null,
   })
     .sort({ lessonDate: -1, createdAt: -1 })
@@ -210,8 +216,7 @@ export async function recomputeStudentDashboardSummary(
         lessonCount,
         scoreEntryCount,
         activeCycleStatus: cycle?.status || "",
-        activeCycleProgressPercent:
-          cycle?.progressSummary?.readinessScore ?? 0,
+        activeCycleProgressPercent: cycle?.progressSummary?.readinessScore ?? 0,
         activeCycleAverageScore: cycle?.progressSummary?.averageScore ?? null,
         updatedAt: new Date(),
       },
