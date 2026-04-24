@@ -211,11 +211,24 @@ export async function updateLesson(req, res, next) {
       return res.status(400).json({ error: "Invalid lessonStartAt" });
     }
 
+    // Fetch cycle here:
     const cycle = await ExamPreparationCycle.findById(
-      lesson.examPreparationCycleId || examPreparationCycleId,
-    ).lean();
+      lesson.examPreparationCycleId,
+    )
+      .select(
+        "_id studentId instrument status cycleStatus examType progressSummary archivedAt",
+      )
+      .lean();
 
+    // Then compute requiredElements
     const requiredElements = getRequiredElementsForCycle(cycle);
+
+    if (process.env.NODE_ENV === "development") {
+      console.log("CYCLE DEBUG", {
+        examType: cycle?.examType,
+        requiredElements: requiredElements,
+      });
+    }
 
     const parsedLessonEndAt = lessonEndAt
       ? normalizeDateTime(lessonEndAt)
@@ -319,14 +332,23 @@ export async function upsertLesson(req, res, next) {
 
     await assertTeacherCanEdit(teacherId, studentId, instrument);
 
+    if (process.env.NODE_ENV === "development") {
+      console.log("CYCLE DEBUG", {
+        examType: cycle?.examType,
+        requiredElements: requiredElements,
+      });
+    }
+
     const parsedLessonDate = normalizeDateOnly(lessonDate);
     if (!parsedLessonDate) {
       return res.status(400).json({ error: "Invalid lessonDate" });
     }
 
-    const cycle = await ExamPreparationCycle.findById(
-      lesson.examPreparationCycleId || examPreparationCycleId,
-    ).lean();
+    const cycle = await validateCycleForLesson({
+      studentId,
+      examPreparationCycleId,
+      instrument,
+    });
 
     const requiredElements = getRequiredElementsForCycle(cycle);
 
