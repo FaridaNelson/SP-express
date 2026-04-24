@@ -43,6 +43,56 @@ function normalizeScales(scales = {}) {
   };
 }
 
+// helpers added for feature/lesson-total-score:
+function isFiniteNumber(value) {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function clampScore(value) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function computeLessonTotalScore({
+  pieces = [],
+  scales = {},
+  sightReading = {},
+  auralTraining = {},
+}) {
+  const pieceMap = Object.fromEntries(
+    (Array.isArray(pieces) ? pieces : []).map((piece) => [
+      piece.pieceId,
+      piece,
+    ]),
+  );
+
+  const scoreByItemId = {
+    scales: isFiniteNumber(scales?.percent) ? scales.percent : 0,
+    pieceA: isFiniteNumber(pieceMap.pieceA?.percent)
+      ? pieceMap.pieceA.percent
+      : 0,
+    pieceB: isFiniteNumber(pieceMap.pieceB?.percent)
+      ? pieceMap.pieceB.percent
+      : 0,
+    pieceC: isFiniteNumber(pieceMap.pieceC?.percent)
+      ? pieceMap.pieceC.percent
+      : 0,
+    sightReading: isFiniteNumber(sightReading?.score) ? sightReading.score : 0,
+    auralTraining: isFiniteNumber(auralTraining?.score)
+      ? auralTraining.score
+      : 0,
+  };
+
+  const weightedTotal =
+    clampScore(scoreByItemId.scales) * 14 +
+    clampScore(scoreByItemId.pieceA) * 20 +
+    clampScore(scoreByItemId.pieceB) * 20 +
+    clampScore(scoreByItemId.pieceC) * 20 +
+    clampScore(scoreByItemId.sightReading) * 14 +
+    clampScore(scoreByItemId.auralTraining) * 12;
+
+  return clampScore(weightedTotal / 100);
+}
+
 async function validateCycleForLesson({
   studentId,
   examPreparationCycleId,
@@ -144,6 +194,15 @@ export async function upsertLesson(req, res, next) {
 
     const normalizedScales = normalizeScales(scales);
 
+    const normalizedPieces = Array.isArray(pieces) ? pieces : [];
+
+    const computedLessonTotalScore = computeLessonTotalScore({
+      pieces: normalizedPieces,
+      scales: normalizedScales,
+      sightReading,
+      auralTraining,
+    });
+
     const lesson = await Lesson.findOneAndUpdate(
       {
         createdByTeacherId: teacherId,
@@ -163,11 +222,12 @@ export async function upsertLesson(req, res, next) {
           lessonEndAt: parsedLessonEndAt,
           lessonType,
           share: !!share,
-          pieces: Array.isArray(pieces) ? pieces : [],
+          pieces: normalizedPieces,
           scales: normalizedScales,
           sightReading,
           auralTraining,
           teacherNarrative,
+          lessonTotalScore: computedLessonTotalScore,
           archivedAt: null,
         },
       },
@@ -237,16 +297,20 @@ export async function listLessonsForStudent(req, res, next) {
 
     const effectiveCycleId = cycleId || examPreparationCycleId;
 
-    if (effectiveCycleId && !mongoose.Types.ObjectId.isValid(effectiveCycleId)) {
+    if (
+      effectiveCycleId &&
+      !mongoose.Types.ObjectId.isValid(effectiveCycleId)
+    ) {
       return res.status(400).json({ error: "Invalid cycleId" });
     }
 
     // Parent ownership guard — parents may only view their own children's lessons
     if (req.user.role === "parent") {
       const student = await Student.findById(studentId);
-      if (!student) return res.status(404).json({ message: "Student not found" });
+      if (!student)
+        return res.status(404).json({ message: "Student not found" });
       const isLinked = student.parentIds?.some(
-        (id) => id.toString() === req.user._id.toString()
+        (id) => id.toString() === req.user._id.toString(),
       );
       if (!isLinked) return res.status(403).json({ message: "Access denied" });
     }
@@ -274,7 +338,7 @@ export async function listLessonsForStudent(req, res, next) {
     }
 
     const lessons = await Lesson.find(query)
-      .sort({ lessonStartAt: -1, createdAt: -1 })
+      .sort({ lessonDate: -1, lessonStartAt: -1, createdAt: -1 })
       .lean();
 
     return res.json({ lessons });
@@ -309,7 +373,7 @@ export async function getLatestLessonForStudent(req, res, next) {
     }
 
     const lesson = await Lesson.findOne(query)
-      .sort({ lessonStartAt: -1, createdAt: -1 })
+      .sort({ lessonDate: -1, lessonStartAt: -1, createdAt: -1 })
       .lean();
 
     return res.json({ lesson: lesson || null });
