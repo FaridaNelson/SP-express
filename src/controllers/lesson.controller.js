@@ -223,13 +223,6 @@ export async function updateLesson(req, res, next) {
     // Then compute requiredElements
     const requiredElements = getRequiredElementsForCycle(cycle);
 
-    if (process.env.NODE_ENV === "development") {
-      console.log("CYCLE DEBUG", {
-        examType: cycle?.examType,
-        requiredElements: requiredElements,
-      });
-    }
-
     const parsedLessonEndAt = lessonEndAt
       ? normalizeDateTime(lessonEndAt)
       : null;
@@ -332,13 +325,6 @@ export async function upsertLesson(req, res, next) {
 
     await assertTeacherCanEdit(teacherId, studentId, instrument);
 
-    if (process.env.NODE_ENV === "development") {
-      console.log("CYCLE DEBUG", {
-        examType: cycle?.examType,
-        requiredElements: requiredElements,
-      });
-    }
-
     const parsedLessonDate = normalizeDateOnly(lessonDate);
     if (!parsedLessonDate) {
       return res.status(400).json({ error: "Invalid lessonDate" });
@@ -351,6 +337,13 @@ export async function upsertLesson(req, res, next) {
     });
 
     const requiredElements = getRequiredElementsForCycle(cycle);
+
+    if (process.env.NODE_ENV === "development") {
+      console.log("CYCLE DEBUG", {
+        examType: cycle?.examType,
+        requiredElements,
+      });
+    }
 
     const parsedLessonStartAt = normalizeDateTime(lessonStartAt);
     if (!parsedLessonStartAt) {
@@ -373,12 +366,6 @@ export async function upsertLesson(req, res, next) {
         error: "lessonEndAt must be later than lessonStartAt",
       });
     }
-
-    await validateCycleForLesson({
-      studentId,
-      examPreparationCycleId,
-      instrument,
-    });
 
     const normalizedScales = normalizeScales(scales);
 
