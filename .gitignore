@@ -5,3 +5,7 @@ node_modules/
 c.txt
 cookies.txt
 CLAUDE.md
+
+# Terraform
+infra/terraform.tfvars
+infra/.terraform/
