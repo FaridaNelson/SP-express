@@ -242,7 +242,9 @@ export async function recomputeStudentReadModels(studentId, options = {}) {
     throw error;
   }
 
-  const student = await Student.findById(studentId)
+  const safeStudentId = new mongoose.Types.ObjectId(studentId);
+
+  const student = await Student.findById(safeStudentId)
     .select("_id activeExamCycleId")
     .session(session || null);
 
