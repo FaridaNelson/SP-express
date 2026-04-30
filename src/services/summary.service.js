@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import ExamPreparationCycle from "../models/ExamPreparationCycle.js";
 import Lesson from "../models/Lesson.js";
 import ScoreEntry from "../models/ScoreEntry.js";
@@ -234,6 +235,12 @@ export async function recomputeStudentDashboardSummary(
 
 export async function recomputeStudentReadModels(studentId, options = {}) {
   const { session } = options;
+
+  if (!mongoose.Types.ObjectId.isValid(studentId)) {
+    const error = new Error("Invalid studentId");
+    error.statusCode = 400;
+    throw error;
+  }
 
   const student = await Student.findById(studentId)
     .select("_id activeExamCycleId")
