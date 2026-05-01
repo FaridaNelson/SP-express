@@ -565,29 +565,19 @@ export async function listStudentsForTeacher(req, res, next) {
 
     const safeTeacherId = new mongoose.Types.ObjectId(teacherId);
 
-    const safeStatus =
-      status && VALID_STATUSES.includes(status) ? status : null;
-    const safeRole = role && VALID_ROLES.includes(role) ? role : null;
+    const safeStatus = VALID_STATUSES.includes(status) ? status : "active";
+
+    const safeRole = role && VALID_ROLES.includes(role) ? role : undefined;
+
     const safeInstrument =
-      instrument && validateInstrument(instrument) ? instrument : null;
+      instrument && validateInstrument(instrument) ? instrument : undefined;
 
-    const query = {
+    const accessRows = await TeacherStudentAccess.find({
       teacherId: safeTeacherId,
-    };
-
-    if (safeStatus) {
-      query.status = safeStatus;
-    }
-
-    if (safeRole) {
-      query.role = safeRole;
-    }
-
-    if (safeInstrument) {
-      query.instrument = safeInstrument;
-    }
-
-    const accessRows = await TeacherStudentAccess.find(query)
+      status: safeStatus,
+      ...(safeRole ? { role: safeRole } : {}),
+      ...(safeInstrument ? { instrument: safeInstrument } : {}),
+    })
       .populate({
         path: "studentId",
         select:
