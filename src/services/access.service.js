@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import TeacherStudentAccess from "../models/TeacherStudentAccess.js";
 
 function createForbiddenError(message) {
@@ -9,9 +10,24 @@ function createForbiddenError(message) {
 export async function getTeacherAccess(teacherId, studentId, instrument) {
   const now = new Date();
 
+  if (!mongoose.Types.ObjectId.isValid(teacherId)) {
+    const err = new Error("Invalid teacherId");
+    err.status = 400;
+    throw err;
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(studentId)) {
+    const err = new Error("Invalid studentId");
+    err.status = 400;
+    throw err;
+  }
+
+  const safeTeacherId = new mongoose.Types.ObjectId(teacherId);
+  const safeStudentId = new mongoose.Types.ObjectId(studentId);
+
   return TeacherStudentAccess.findOne({
-    teacherId,
-    studentId,
+    teacherId: safeTeacherId,
+    studentId: safeStudentId,
     instrument,
     status: "active",
     startedAt: { $lte: now },
@@ -22,9 +38,24 @@ export async function getTeacherAccess(teacherId, studentId, instrument) {
 export async function getTeacherAnyAccess(teacherId, studentId) {
   const now = new Date();
 
+  if (!mongoose.Types.ObjectId.isValid(teacherId)) {
+    const err = new Error("Invalid teacherId");
+    err.status = 400;
+    throw err;
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(studentId)) {
+    const err = new Error("Invalid studentId");
+    err.status = 400;
+    throw err;
+  }
+
+  const safeTeacherId = new mongoose.Types.ObjectId(teacherId);
+  const safeStudentId = new mongoose.Types.ObjectId(studentId);
+
   return TeacherStudentAccess.findOne({
-    teacherId,
-    studentId,
+    teacherId: safeTeacherId,
+    studentId: safeStudentId,
     status: "active",
     startedAt: { $lte: now },
     $or: [{ endedAt: null }, { endedAt: { $gt: now } }],
