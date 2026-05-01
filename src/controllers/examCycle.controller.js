@@ -1,6 +1,7 @@
 import ExamPreparationCycle from "../models/ExamPreparationCycle.js";
 import Student from "../models/Student.js";
 import AuditLog from "../models/AuditLog.js";
+import { validateObjectId } from "../utils/validate.js";
 import {
   assertTeacherCanEdit,
   assertTeacherCanView,
@@ -290,13 +291,16 @@ export async function setActiveExamCycle(req, res, next) {
     const teacherId = req.user._id;
     const { studentId, cycleId } = req.params;
 
-    const student = await getStudentOrThrow(studentId);
-    const cycle = await getCycleOrThrow(cycleId);
+    const safeStudentId = validateObjectId(studentId, "studentId");
+    const safeCycleId = validateObjectId(cycleId, "cycleId");
+
+    const student = await getStudentOrThrow(safeStudentId);
+    const cycle = await getCycleOrThrow(safeCycleId);
 
     await ensureCycleBelongsToStudent(cycle, student._id);
-    await assertTeacherCanEdit(teacherId, studentId, cycle.instrument);
+    await assertTeacherCanEdit(teacherId, safeStudentId, cycle.instrument);
 
-    await Student.findByIdAndUpdate(studentId, {
+    await Student.findByIdAndUpdate(safeStudentId, {
       $set: { activeExamCycleId: cycle._id },
     });
 
@@ -306,7 +310,7 @@ export async function setActiveExamCycle(req, res, next) {
     }
 
     await recomputeExamCycleSummary(cycle._id);
-    await recomputeStudentReadModels(studentId);
+    await recomputeStudentReadModels(safeStudentId);
 
     await AuditLog.create({
       actorUserId: teacherId,
@@ -314,7 +318,7 @@ export async function setActiveExamCycle(req, res, next) {
       action: "SET_ACTIVE_EXAM_CYCLE",
       targetType: "ExamPreparationCycle",
       targetId: cycle._id,
-      studentId,
+      studentId: safeStudentId,
       metadata: {
         activeExamCycleId: cycle._id,
       },
@@ -336,15 +340,17 @@ export async function listExamCyclesForStudent(req, res, next) {
     const { studentId } = req.params;
     const { instrument, includeArchived } = req.query;
 
+    const safeStudentId = validateObjectId(studentId, "studentId");
+
     if (instrument) {
       parseEnum(instrument, ALLOWED_INSTRUMENTS, "instrument");
-      await assertTeacherCanView(req.user._id, studentId, instrument);
+      await assertTeacherCanView(req.user._id, safeStudentId, instrument);
     } else {
-      await assertTeacherHasAnyAccess(req.user._id, studentId);
+      await assertTeacherHasAnyAccess(req.user._id, safeStudentId);
     }
 
     const query = {
-      studentId,
+      studentId: safeStudentId,
     };
 
     if (!parseBoolean(includeArchived)) {
@@ -376,7 +382,11 @@ export async function getExamCycleById(req, res, next) {
     }
 
     try {
-      await assertTeacherCanView(req.user._id, cycle.studentId, cycle.instrument);
+      await assertTeacherCanView(
+        req.user._id,
+        cycle.studentId,
+        cycle.instrument,
+      );
     } catch {
       return res.status(404).json({ error: "Exam cycle not found" });
     }
