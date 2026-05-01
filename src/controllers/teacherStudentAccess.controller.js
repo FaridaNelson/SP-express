@@ -563,18 +563,28 @@ export async function listStudentsForTeacher(req, res, next) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
-    const query = { teacherId };
+    const safeTeacherId = new mongoose.Types.ObjectId(teacherId);
 
-    if (status) {
-      query.status = status;
+    const safeStatus =
+      status && VALID_STATUSES.includes(status) ? status : null;
+    const safeRole = role && VALID_ROLES.includes(role) ? role : null;
+    const safeInstrument =
+      instrument && validateInstrument(instrument) ? instrument : null;
+
+    const query = {
+      teacherId: safeTeacherId,
+    };
+
+    if (safeStatus) {
+      query.status = safeStatus;
     }
 
-    if (role) {
-      query.role = role;
+    if (safeRole) {
+      query.role = safeRole;
     }
 
-    if (instrument) {
-      query.instrument = instrument;
+    if (safeInstrument) {
+      query.instrument = safeInstrument;
     }
 
     const accessRows = await TeacherStudentAccess.find(query)
@@ -596,7 +606,7 @@ export async function listStudentsForTeacher(req, res, next) {
       .lean();
 
     const summaryMap = new Map(
-      summaries.map((s) => [s.studentId.toString(), s])
+      summaries.map((s) => [s.studentId.toString(), s]),
     );
 
     const students = filtered.map((row) => ({
