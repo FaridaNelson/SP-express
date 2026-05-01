@@ -5,6 +5,12 @@ import User from "../models/User.js";
 import AuditLog from "../models/AuditLog.js";
 import StudentDashboardSummary from "../models/StudentDashboardSummary.js";
 import { recomputeStudentDashboardSummary } from "../services/summary.service.js";
+import { VALID_INSTRUMENTS } from "../constants/instruments.js";
+import {
+  VALID_ACCESS_ROLES,
+  VALID_ASSIGNABLE_ROLES,
+  VALID_ACCESS_STATUSES,
+} from "../constants/access.js";
 
 function createHttpError(status, message) {
   const err = new Error(message);
@@ -33,13 +39,61 @@ function isValidObjectId(value) {
   return mongoose.Types.ObjectId.isValid(String(value || ""));
 }
 
+function toObjectIdOrThrow(value, fieldName) {
+  if (!isValidObjectId(value)) {
+    throw createHttpError(400, `Invalid ${fieldName}`);
+  }
+
+  return new mongoose.Types.ObjectId(String(value));
+}
+
 function validateInstrument(instrument) {
-  const allowed = ["Piano", "Voice", "Guitar"];
-  return allowed.includes(String(instrument || "").trim());
+  return VALID_INSTRUMENTS.includes(String(instrument || "").trim());
+}
+
+function getSafeInstrumentOrThrow(instrument) {
+  const normalized = normalizeTrimmedString(instrument);
+
+  if (normalized === "Piano") return "Piano";
+  if (normalized === "Voice") return "Voice";
+  if (normalized === "Guitar") return "Guitar";
+
+  throw createHttpError(400, "Invalid instrument");
+}
+
+function getSafeOptionalInstrument(instrument) {
+  if (!instrument) return undefined;
+  return getSafeInstrumentOrThrow(instrument);
+}
+
+function getSafeAssignableRoleOrThrow(role) {
+  if (role === "collaborator") return "collaborator";
+  if (role === "viewer") return "viewer";
+
+  throw createHttpError(400, 'role must be either "collaborator" or "viewer"');
+}
+
+function getSafeOptionalAccessRole(role) {
+  if (!role) return undefined;
+
+  if (role === "primary") return "primary";
+  if (role === "collaborator") return "collaborator";
+  if (role === "viewer") return "viewer";
+
+  throw createHttpError(400, "Invalid role");
+}
+
+function getSafeAccessStatus(status = "active") {
+  if (!status || status === "active") return "active";
+  if (status === "revoked") return "revoked";
+
+  throw createHttpError(400, "Invalid status");
 }
 
 async function getStudentOrThrow(studentId, session = null) {
-  const student = await Student.findById(studentId)
+  const safeStudentId = toObjectIdOrThrow(studentId, "studentId");
+
+  const student = await Student.findById(safeStudentId)
     .select("_id status archivedAt")
     .session(session);
 
@@ -51,7 +105,9 @@ async function getStudentOrThrow(studentId, session = null) {
 }
 
 async function getTeacherOrThrow(teacherId, session = null) {
-  const teacher = await User.findById(teacherId)
+  const safeTeacherId = toObjectIdOrThrow(teacherId, "teacherId");
+
+  const teacher = await User.findById(safeTeacherId)
     .select("_id roles status deletedAt firstName lastName name email")
     .session(session);
 
@@ -72,9 +128,12 @@ async function getActiveAccessForStudentInstrument(
   instrument,
   session = null,
 ) {
+  const safeStudentId = toObjectIdOrThrow(studentId, "studentId");
+  const safeInstrument = getSafeInstrumentOrThrow(instrument);
+
   return TeacherStudentAccess.find({
-    studentId,
-    instrument,
+    studentId: safeStudentId,
+    instrument: safeInstrument,
     status: "active",
     endedAt: null,
   })
@@ -88,9 +147,12 @@ async function getPrimaryAccessForStudentInstrument(
   instrument,
   session = null,
 ) {
+  const safeStudentId = toObjectIdOrThrow(studentId, "studentId");
+  const safeInstrument = getSafeInstrumentOrThrow(instrument);
+
   return TeacherStudentAccess.findOne({
-    studentId,
-    instrument,
+    studentId: safeStudentId,
+    instrument: safeInstrument,
     status: "active",
     endedAt: null,
     role: "primary",
@@ -107,9 +169,8 @@ async function assertActorCanManageStudentAccess(
     throw createHttpError(401, "Unauthenticated");
   }
 
-  if (!validateInstrument(instrument)) {
-    throw createHttpError(400, "Invalid instrument");
-  }
+  const safeStudentId = toObjectIdOrThrow(studentId, "studentId");
+  const safeInstrument = getSafeInstrumentOrThrow(instrument);
 
   if (isAdmin(actorUser)) {
     return true;
@@ -120,8 +181,8 @@ async function assertActorCanManageStudentAccess(
   }
 
   const activePrimary = await TeacherStudentAccess.findOne({
-    studentId,
-    instrument,
+    studentId: safeStudentId,
+    instrument: safeInstrument,
     teacherId: actorUser._id,
     status: "active",
     endedAt: null,
@@ -173,35 +234,32 @@ export async function assignPrimaryTeacher(req, res, next) {
     const { studentId } = req.params;
     const { teacherId, instrument, note = "" } = req.body || {};
 
-    if (!isValidObjectId(studentId) || !isValidObjectId(teacherId)) {
-      return res.status(400).json({ error: "Invalid studentId or teacherId" });
-    }
-
-    if (!validateInstrument(instrument)) {
-      return res.status(400).json({ error: "Invalid instrument" });
-    }
+    const safeStudentId = toObjectIdOrThrow(studentId, "studentId");
+    const safeTeacherId = toObjectIdOrThrow(teacherId, "teacherId");
+    const safeInstrument = getSafeInstrumentOrThrow(instrument);
+    const safeNote = normalizeTrimmedString(note);
 
     let responsePayload = null;
 
     await session.withTransaction(async () => {
       await assertActorCanManageStudentAccess(
         actorUser,
-        studentId,
-        instrument,
+        safeStudentId,
+        safeInstrument,
         session,
       );
-      await getStudentOrThrow(studentId, session);
-      await getTeacherOrThrow(teacherId, session);
+      await getStudentOrThrow(safeStudentId, session);
+      await getTeacherOrThrow(safeTeacherId, session);
 
       const currentPrimary = await getPrimaryAccessForStudentInstrument(
-        studentId,
-        instrument,
+        safeStudentId,
+        safeInstrument,
         session,
       );
 
       if (
         currentPrimary &&
-        String(currentPrimary.teacherId) === String(teacherId)
+        String(currentPrimary.teacherId) === String(safeTeacherId)
       ) {
         throw createHttpError(
           400,
@@ -222,10 +280,10 @@ export async function assignPrimaryTeacher(req, res, next) {
           actorUser,
           action: "REVOKE_PRIMARY_TEACHER",
           targetId: currentPrimary._id,
-          studentId,
+          studentId: safeStudentId,
           metadata: {
             previousTeacherId: currentPrimary.teacherId,
-            instrument,
+            instrument: safeInstrument,
             reason: "Replaced by new primary teacher",
           },
           req,
@@ -234,9 +292,9 @@ export async function assignPrimaryTeacher(req, res, next) {
       }
 
       const existingActiveRow = await TeacherStudentAccess.findOne({
-        studentId,
-        teacherId,
-        instrument,
+        studentId: safeStudentId,
+        teacherId: safeTeacherId,
+        instrument: safeInstrument,
         status: "active",
         endedAt: null,
       }).session(session);
@@ -245,23 +303,23 @@ export async function assignPrimaryTeacher(req, res, next) {
 
       if (existingActiveRow) {
         existingActiveRow.role = "primary";
-        existingActiveRow.note = normalizeTrimmedString(note);
+        existingActiveRow.note = safeNote;
         await existingActiveRow.save({ session });
         primaryAccess = existingActiveRow;
       } else {
         primaryAccess = await TeacherStudentAccess.create(
           [
             {
-              studentId,
-              teacherId,
-              instrument,
+              studentId: safeStudentId,
+              teacherId: safeTeacherId,
+              instrument: safeInstrument,
               status: "active",
               role: "primary",
               startedAt: new Date(),
               endedAt: null,
               grantedByUserId: actorUser._id,
               revokedByUserId: null,
-              note: normalizeTrimmedString(note),
+              note: safeNote,
             },
           ],
           { session },
@@ -272,12 +330,12 @@ export async function assignPrimaryTeacher(req, res, next) {
         actorUser,
         action: "ASSIGN_PRIMARY_TEACHER",
         targetId: primaryAccess._id,
-        studentId,
+        studentId: safeStudentId,
         metadata: {
-          teacherId,
-          instrument,
+          teacherId: safeTeacherId,
+          instrument: safeInstrument,
           role: "primary",
-          note: normalizeTrimmedString(note),
+          note: safeNote,
         },
         req,
         session,
@@ -289,7 +347,7 @@ export async function assignPrimaryTeacher(req, res, next) {
       };
     });
 
-    await recomputeStudentDashboardSummary(studentId);
+    await recomputeStudentDashboardSummary(safeStudentId);
 
     return res.status(200).json(responsePayload);
   } catch (err) {
@@ -312,36 +370,28 @@ export async function addTeacherAccess(req, res, next) {
       note = "",
     } = req.body || {};
 
-    if (!isValidObjectId(studentId) || !isValidObjectId(teacherId)) {
-      return res.status(400).json({ error: "Invalid studentId or teacherId" });
-    }
-
-    if (!validateInstrument(instrument)) {
-      return res.status(400).json({ error: "Invalid instrument" });
-    }
-
-    if (!["collaborator", "viewer"].includes(role)) {
-      return res.status(400).json({
-        error: 'role must be either "collaborator" or "viewer"',
-      });
-    }
+    const safeStudentId = toObjectIdOrThrow(studentId, "studentId");
+    const safeTeacherId = toObjectIdOrThrow(teacherId, "teacherId");
+    const safeInstrument = getSafeInstrumentOrThrow(instrument);
+    const safeRole = getSafeAssignableRoleOrThrow(role);
+    const safeNote = normalizeTrimmedString(note);
 
     let responsePayload = null;
 
     await session.withTransaction(async () => {
       await assertActorCanManageStudentAccess(
         actorUser,
-        studentId,
-        instrument,
+        safeStudentId,
+        safeInstrument,
         session,
       );
-      await getStudentOrThrow(studentId, session);
-      await getTeacherOrThrow(teacherId, session);
+      await getStudentOrThrow(safeStudentId, session);
+      await getTeacherOrThrow(safeTeacherId, session);
 
       const existingActive = await TeacherStudentAccess.findOne({
-        studentId,
-        teacherId,
-        instrument,
+        studentId: safeStudentId,
+        teacherId: safeTeacherId,
+        instrument: safeInstrument,
         status: "active",
         endedAt: null,
       }).session(session);
@@ -356,16 +406,16 @@ export async function addTeacherAccess(req, res, next) {
       const access = await TeacherStudentAccess.create(
         [
           {
-            studentId,
-            teacherId,
-            instrument,
+            studentId: safeStudentId,
+            teacherId: safeTeacherId,
+            instrument: safeInstrument,
             status: "active",
-            role,
+            role: safeRole,
             startedAt: new Date(),
             endedAt: null,
             grantedByUserId: actorUser._id,
             revokedByUserId: null,
-            note: normalizeTrimmedString(note),
+            note: safeNote,
           },
         ],
         { session },
@@ -375,12 +425,12 @@ export async function addTeacherAccess(req, res, next) {
         actorUser,
         action: "ADD_TEACHER_ACCESS",
         targetId: access._id,
-        studentId,
+        studentId: safeStudentId,
         metadata: {
-          teacherId,
-          instrument,
-          role,
-          note: normalizeTrimmedString(note),
+          teacherId: safeTeacherId,
+          instrument: safeInstrument,
+          role: safeRole,
+          note: safeNote,
         },
         req,
         session,
@@ -392,7 +442,7 @@ export async function addTeacherAccess(req, res, next) {
       };
     });
 
-    await recomputeStudentDashboardSummary(studentId);
+    await recomputeStudentDashboardSummary(safeStudentId);
 
     return res.status(201).json(responsePayload);
   } catch (err) {
@@ -410,20 +460,20 @@ export async function revokeTeacherAccess(req, res, next) {
     const { studentId, accessId } = req.params;
     const { note = "" } = req.body || {};
 
-    if (!isValidObjectId(studentId) || !isValidObjectId(accessId)) {
-      return res.status(400).json({ error: "Invalid studentId or accessId" });
-    }
+    const safeStudentId = toObjectIdOrThrow(studentId, "studentId");
+    const safeAccessId = toObjectIdOrThrow(accessId, "accessId");
+    const safeNote = normalizeTrimmedString(note);
 
     let responsePayload = null;
 
     await session.withTransaction(async () => {
       const access =
-        await TeacherStudentAccess.findById(accessId).session(session);
+        await TeacherStudentAccess.findById(safeAccessId).session(session);
       if (!access) {
         throw createHttpError(404, "Access row not found");
       }
 
-      if (String(access.studentId) !== String(studentId)) {
+      if (String(access.studentId) !== String(safeStudentId)) {
         throw createHttpError(
           400,
           "Access row does not belong to this student",
@@ -432,7 +482,7 @@ export async function revokeTeacherAccess(req, res, next) {
 
       await assertActorCanManageStudentAccess(
         actorUser,
-        studentId,
+        safeStudentId,
         access.instrument,
         session,
       );
@@ -452,7 +502,7 @@ export async function revokeTeacherAccess(req, res, next) {
       access.endedAt = new Date();
       access.revokedByUserId = actorUser._id;
       access.note = normalizeTrimmedString(
-        `${access.note ? `${access.note}\n` : ""}${normalizeTrimmedString(note)}`,
+        `${access.note ? `${access.note}\n` : ""}${safeNote}`,
       );
 
       await access.save({ session });
@@ -461,12 +511,12 @@ export async function revokeTeacherAccess(req, res, next) {
         actorUser,
         action: "REVOKE_TEACHER_ACCESS",
         targetId: access._id,
-        studentId,
+        studentId: safeStudentId,
         metadata: {
           teacherId: access.teacherId,
           instrument: access.instrument,
           previousRole: access.role,
-          note: normalizeTrimmedString(note),
+          note: safeNote,
         },
         req,
         session,
@@ -478,7 +528,7 @@ export async function revokeTeacherAccess(req, res, next) {
       };
     });
 
-    await recomputeStudentDashboardSummary(studentId);
+    await recomputeStudentDashboardSummary(safeStudentId);
 
     return res.status(200).json(responsePayload);
   } catch (err) {
@@ -494,16 +544,15 @@ export async function listTeacherAccessForStudent(req, res, next) {
     const { studentId } = req.params;
     const { instrument } = req.query;
 
-    if (!isValidObjectId(studentId)) {
-      return res.status(400).json({ error: "Invalid studentId" });
-    }
+    const safeStudentId = toObjectIdOrThrow(studentId, "studentId");
+    const safeInstrument = getSafeOptionalInstrument(instrument);
 
-    if (instrument && !validateInstrument(instrument)) {
-      return res.status(400).json({ error: "Invalid instrument" });
-    }
-
-    if (instrument) {
-      await assertActorCanManageStudentAccess(actorUser, studentId, instrument);
+    if (safeInstrument) {
+      await assertActorCanManageStudentAccess(
+        actorUser,
+        safeStudentId,
+        safeInstrument,
+      );
     } else {
       if (!actorUser?._id) {
         return res.status(401).json({ error: "Unauthenticated" });
@@ -517,10 +566,9 @@ export async function listTeacherAccessForStudent(req, res, next) {
       }
     }
 
-    const query = { studentId };
-    if (instrument) {
-      query.instrument = instrument;
-    }
+    const query = safeInstrument
+      ? { studentId: safeStudentId, instrument: safeInstrument }
+      : { studentId: safeStudentId };
 
     const accessRows = await TeacherStudentAccess.find(query)
       .populate("teacherId", "_id firstName lastName name email roles status")
@@ -541,62 +589,43 @@ export async function listStudentsForTeacher(req, res, next) {
     const teacherId = req.params.teacherId || actorUser._id;
     const { role, status = "active", instrument } = req.query;
 
-    if (!isValidObjectId(teacherId)) {
-      return res.status(400).json({ error: "Invalid teacherId" });
-    }
+    const safeTeacherId = toObjectIdOrThrow(teacherId, "teacherId");
+    const safeStatus = getSafeAccessStatus(status);
+    const safeRole = getSafeOptionalAccessRole(role);
+    const safeInstrument = getSafeOptionalInstrument(instrument);
 
-    if (instrument && !validateInstrument(instrument)) {
-      return res.status(400).json({ error: "Invalid instrument" });
-    }
-
-    const VALID_ROLES = ["primary", "collaborator", "viewer"];
-    if (role && !VALID_ROLES.includes(role)) {
-      return res.status(400).json({ error: "Invalid role" });
-    }
-
-    const VALID_STATUSES = ["active", "revoked"];
-    if (status && !VALID_STATUSES.includes(status)) {
-      return res.status(400).json({ error: "Invalid status" });
-    }
-
-    if (!isAdmin(actorUser) && String(actorUser._id) !== String(teacherId)) {
+    if (
+      !isAdmin(actorUser) &&
+      String(actorUser._id) !== String(safeTeacherId)
+    ) {
       return res.status(403).json({ error: "Forbidden" });
     }
-
-    const safeTeacherId = new mongoose.Types.ObjectId(teacherId);
-
-    const safeStatus = VALID_STATUSES.includes(status) ? status : "active";
-
-    const safeRole = role && VALID_ROLES.includes(role) ? role : undefined;
-
-    const safeInstrument =
-      instrument && validateInstrument(instrument) ? instrument : undefined;
 
     let accessRowsQuery;
 
     if (safeRole && safeInstrument) {
       accessRowsQuery = TeacherStudentAccess.find({
-        teacherId: { $eq: safeTeacherId },
-        status: { $eq: safeStatus },
-        role: { $eq: safeRole },
-        instrument: { $eq: safeInstrument },
+        teacherId: safeTeacherId,
+        status: safeStatus,
+        role: safeRole,
+        instrument: safeInstrument,
       });
     } else if (safeRole) {
       accessRowsQuery = TeacherStudentAccess.find({
-        teacherId: { $eq: safeTeacherId },
-        status: { $eq: safeStatus },
-        role: { $eq: safeRole },
+        teacherId: safeTeacherId,
+        status: safeStatus,
+        role: safeRole,
       });
     } else if (safeInstrument) {
       accessRowsQuery = TeacherStudentAccess.find({
-        teacherId: { $eq: safeTeacherId },
-        status: { $eq: safeStatus },
-        instrument: { $eq: safeInstrument },
+        teacherId: safeTeacherId,
+        status: safeStatus,
+        instrument: safeInstrument,
       });
     } else {
       accessRowsQuery = TeacherStudentAccess.find({
-        teacherId: { $eq: safeTeacherId },
-        status: { $eq: safeStatus },
+        teacherId: safeTeacherId,
+        status: safeStatus,
       });
     }
 
