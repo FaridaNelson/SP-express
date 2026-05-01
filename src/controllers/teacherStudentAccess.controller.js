@@ -565,29 +565,42 @@ export async function listStudentsForTeacher(req, res, next) {
 
     const safeTeacherId = new mongoose.Types.ObjectId(teacherId);
 
-    const safeStatus =
-      status && VALID_STATUSES.includes(status) ? status : null;
-    const safeRole = role && VALID_ROLES.includes(role) ? role : null;
+    const safeStatus = VALID_STATUSES.includes(status) ? status : "active";
+
+    const safeRole = role && VALID_ROLES.includes(role) ? role : undefined;
+
     const safeInstrument =
-      instrument && validateInstrument(instrument) ? instrument : null;
+      instrument && validateInstrument(instrument) ? instrument : undefined;
 
-    const query = {
-      teacherId: safeTeacherId,
-    };
+    let accessRowsQuery;
 
-    if (safeStatus) {
-      query.status = safeStatus;
+    if (safeRole && safeInstrument) {
+      accessRowsQuery = TeacherStudentAccess.find({
+        teacherId: { $eq: safeTeacherId },
+        status: { $eq: safeStatus },
+        role: { $eq: safeRole },
+        instrument: { $eq: safeInstrument },
+      });
+    } else if (safeRole) {
+      accessRowsQuery = TeacherStudentAccess.find({
+        teacherId: { $eq: safeTeacherId },
+        status: { $eq: safeStatus },
+        role: { $eq: safeRole },
+      });
+    } else if (safeInstrument) {
+      accessRowsQuery = TeacherStudentAccess.find({
+        teacherId: { $eq: safeTeacherId },
+        status: { $eq: safeStatus },
+        instrument: { $eq: safeInstrument },
+      });
+    } else {
+      accessRowsQuery = TeacherStudentAccess.find({
+        teacherId: { $eq: safeTeacherId },
+        status: { $eq: safeStatus },
+      });
     }
 
-    if (safeRole) {
-      query.role = safeRole;
-    }
-
-    if (safeInstrument) {
-      query.instrument = safeInstrument;
-    }
-
-    const accessRows = await TeacherStudentAccess.find(query)
+    const accessRows = await accessRowsQuery
       .populate({
         path: "studentId",
         select:
