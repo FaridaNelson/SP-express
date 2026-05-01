@@ -572,35 +572,35 @@ export async function listStudentsForTeacher(req, res, next) {
     const safeInstrument =
       instrument && validateInstrument(instrument) ? instrument : undefined;
 
-    let accessRows;
+    let accessRowsQuery;
 
     if (safeRole && safeInstrument) {
-      accessRows = await TeacherStudentAccess.find({
-        teacherId: safeTeacherId,
-        status: safeStatus,
-        role: safeRole,
-        instrument: safeInstrument,
+      accessRowsQuery = TeacherStudentAccess.find({
+        teacherId: { $eq: safeTeacherId },
+        status: { $eq: safeStatus },
+        role: { $eq: safeRole },
+        instrument: { $eq: safeInstrument },
       });
     } else if (safeRole) {
-      accessRows = await TeacherStudentAccess.find({
-        teacherId: safeTeacherId,
-        status: safeStatus,
-        role: safeRole,
+      accessRowsQuery = TeacherStudentAccess.find({
+        teacherId: { $eq: safeTeacherId },
+        status: { $eq: safeStatus },
+        role: { $eq: safeRole },
       });
     } else if (safeInstrument) {
-      accessRows = await TeacherStudentAccess.find({
-        teacherId: safeTeacherId,
-        status: safeStatus,
-        instrument: safeInstrument,
+      accessRowsQuery = TeacherStudentAccess.find({
+        teacherId: { $eq: safeTeacherId },
+        status: { $eq: safeStatus },
+        instrument: { $eq: safeInstrument },
       });
     } else {
-      accessRows = await TeacherStudentAccess.find({
-        teacherId: safeTeacherId,
-        status: safeStatus,
+      accessRowsQuery = TeacherStudentAccess.find({
+        teacherId: { $eq: safeTeacherId },
+        status: { $eq: safeStatus },
       });
     }
 
-    accessRows = await accessRows
+    const accessRows = await accessRowsQuery
       .populate({
         path: "studentId",
         select:
