@@ -147,7 +147,15 @@ export async function recomputeStudentDashboardSummary(
 ) {
   const { session } = options;
 
-  const student = await Student.findById(studentId)
+  if (!mongoose.Types.ObjectId.isValid(studentId)) {
+    const error = new Error("Invalid studentId");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const safeStudentId = new mongoose.Types.ObjectId(studentId);
+
+  const student = await Student.findById(safeStudentId)
     .select("_id activeExamCycleId")
     .session(session || null);
 
