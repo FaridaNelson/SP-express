@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import TeacherStudentAccess from "../models/TeacherStudentAccess.js";
+import { VALID_INSTRUMENTS } from "../constants/instruments.js";
 
 function createForbiddenError(message) {
   const err = new Error(message);
@@ -21,14 +22,20 @@ export async function getTeacherAccess(teacherId, studentId, instrument) {
     err.status = 400;
     throw err;
   }
+  if (!VALID_INSTRUMENTS.includes(instrument)) {
+    const err = new Error("Invalid instrument");
+    err.status = 400;
+    throw err;
+  }
 
+  const safeInstrument = VALID_INSTRUMENTS.find((item) => item === instrument);
   const safeTeacherId = new mongoose.Types.ObjectId(teacherId);
   const safeStudentId = new mongoose.Types.ObjectId(studentId);
 
   return TeacherStudentAccess.findOne({
     teacherId: safeTeacherId,
     studentId: safeStudentId,
-    instrument,
+    instrument: safeInstrument,
     status: "active",
     startedAt: { $lte: now },
     $or: [{ endedAt: null }, { endedAt: { $gt: now } }],
