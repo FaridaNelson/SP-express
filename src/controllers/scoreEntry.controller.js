@@ -3,6 +3,7 @@ import ExamPreparationCycle from "../models/ExamPreparationCycle.js";
 import AuditLog from "../models/AuditLog.js";
 import { assertTeacherCanEdit } from "../services/access.service.js";
 import { recomputeStudentReadModels } from "../services/summary.service.js";
+import { validateObjectId } from "../utils/validate.js";
 
 function normalizeDate(value) {
   if (!value) return null;
@@ -43,14 +44,20 @@ export async function createScoreEntry(req, res, next) {
       });
     }
 
-    await assertTeacherCanEdit(teacherId, studentId, instrument);
+    const safeStudentId = validateObjectId(studentId, "studentId");
+    const safeCycleId = validateObjectId(
+      examPreparationCycleId,
+      "examPreparationCycleId",
+    );
+
+    await assertTeacherCanEdit(teacherId, safeStudentId, instrument);
 
     const parsedLessonDate = normalizeDate(lessonDate);
     if (!parsedLessonDate) {
       return res.status(400).json({ error: "Invalid lessonDate" });
     }
 
-    const cycle = await ExamPreparationCycle.findById(examPreparationCycleId)
+    const cycle = await ExamPreparationCycle.findById(safeCycleId)
       .select("_id studentId instrument archivedAt")
       .lean();
 
@@ -58,7 +65,7 @@ export async function createScoreEntry(req, res, next) {
       return res.status(404).json({ error: "Cycle not found" });
     }
 
-    if (String(cycle.studentId) !== String(studentId)) {
+    if (String(cycle.studentId) !== String(safeStudentId)) {
       return res.status(400).json({ error: "Cycle mismatch" });
     }
 
@@ -68,8 +75,8 @@ export async function createScoreEntry(req, res, next) {
 
     const entry = await ScoreEntry.create({
       createdByTeacherId: teacherId,
-      studentId,
-      examPreparationCycleId,
+      studentId: safeStudentId,
+      examPreparationCycleId: safeCycleId,
       instrument,
       lessonDate: parsedLessonDate,
       elementId,
@@ -83,7 +90,7 @@ export async function createScoreEntry(req, res, next) {
       auralTrainingNotes,
     });
 
-    await recomputeStudentReadModels(studentId);
+    await recomputeStudentReadModels(safeStudentId);
 
     await AuditLog.create({
       actorUserId: teacherId,
@@ -91,9 +98,9 @@ export async function createScoreEntry(req, res, next) {
       action: "CREATE_SCORE_ENTRY",
       targetType: "ScoreEntry",
       targetId: entry._id,
-      studentId,
+      studentId: safeStudentId,
       metadata: {
-        examPreparationCycleId,
+        examPreparationCycleId: safeCycleId,
         instrument,
         lessonDate: parsedLessonDate,
         elementId,

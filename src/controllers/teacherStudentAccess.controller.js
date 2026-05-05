@@ -11,6 +11,7 @@ import {
   VALID_ASSIGNABLE_ROLES,
   VALID_ACCESS_STATUSES,
 } from "../constants/access.js";
+import { validateObjectId } from "../utils/validate.js";
 
 function createHttpError(status, message) {
   const err = new Error(message);
@@ -33,18 +34,6 @@ function isTeacher(user) {
 
 function normalizeTrimmedString(value) {
   return String(value || "").trim();
-}
-
-function isValidObjectId(value) {
-  return mongoose.Types.ObjectId.isValid(String(value || ""));
-}
-
-function toObjectIdOrThrow(value, fieldName) {
-  if (!isValidObjectId(value)) {
-    throw createHttpError(400, `Invalid ${fieldName}`);
-  }
-
-  return new mongoose.Types.ObjectId(String(value));
 }
 
 function validateInstrument(instrument) {
@@ -91,7 +80,7 @@ function getSafeAccessStatus(status = "active") {
 }
 
 async function getStudentOrThrow(studentId, session = null) {
-  const safeStudentId = toObjectIdOrThrow(studentId, "studentId");
+  const safeStudentId = validateObjectId(studentId, "studentId");
 
   const student = await Student.findById(safeStudentId)
     .select("_id status archivedAt")
@@ -105,7 +94,7 @@ async function getStudentOrThrow(studentId, session = null) {
 }
 
 async function getTeacherOrThrow(teacherId, session = null) {
-  const safeTeacherId = toObjectIdOrThrow(teacherId, "teacherId");
+  const safeTeacherId = validateObjectId(teacherId, "teacherId");
 
   const teacher = await User.findById(safeTeacherId)
     .select("_id roles status deletedAt firstName lastName name email")
@@ -128,7 +117,7 @@ async function getActiveAccessForStudentInstrument(
   instrument,
   session = null,
 ) {
-  const safeStudentId = toObjectIdOrThrow(studentId, "studentId");
+  const safeStudentId = validateObjectId(studentId, "studentId");
   const safeInstrument = getSafeInstrumentOrThrow(instrument);
 
   return TeacherStudentAccess.find({
@@ -147,7 +136,7 @@ async function getPrimaryAccessForStudentInstrument(
   instrument,
   session = null,
 ) {
-  const safeStudentId = toObjectIdOrThrow(studentId, "studentId");
+  const safeStudentId = validateObjectId(studentId, "studentId");
   const safeInstrument = getSafeInstrumentOrThrow(instrument);
 
   return TeacherStudentAccess.findOne({
@@ -169,7 +158,7 @@ async function assertActorCanManageStudentAccess(
     throw createHttpError(401, "Unauthenticated");
   }
 
-  const safeStudentId = toObjectIdOrThrow(studentId, "studentId");
+  const safeStudentId = validateObjectId(studentId, "studentId");
   const safeInstrument = getSafeInstrumentOrThrow(instrument);
 
   if (isAdmin(actorUser)) {
@@ -234,8 +223,8 @@ export async function assignPrimaryTeacher(req, res, next) {
     const { studentId } = req.params;
     const { teacherId, instrument, note = "" } = req.body || {};
 
-    const safeStudentId = toObjectIdOrThrow(studentId, "studentId");
-    const safeTeacherId = toObjectIdOrThrow(teacherId, "teacherId");
+    const safeStudentId = validateObjectId(studentId, "studentId");
+    const safeTeacherId = validateObjectId(teacherId, "teacherId");
     const safeInstrument = getSafeInstrumentOrThrow(instrument);
     const safeNote = normalizeTrimmedString(note);
 
@@ -370,8 +359,8 @@ export async function addTeacherAccess(req, res, next) {
       note = "",
     } = req.body || {};
 
-    const safeStudentId = toObjectIdOrThrow(studentId, "studentId");
-    const safeTeacherId = toObjectIdOrThrow(teacherId, "teacherId");
+    const safeStudentId = validateObjectId(studentId, "studentId");
+    const safeTeacherId = validateObjectId(teacherId, "teacherId");
     const safeInstrument = getSafeInstrumentOrThrow(instrument);
     const safeRole = getSafeAssignableRoleOrThrow(role);
     const safeNote = normalizeTrimmedString(note);
@@ -460,8 +449,8 @@ export async function revokeTeacherAccess(req, res, next) {
     const { studentId, accessId } = req.params;
     const { note = "" } = req.body || {};
 
-    const safeStudentId = toObjectIdOrThrow(studentId, "studentId");
-    const safeAccessId = toObjectIdOrThrow(accessId, "accessId");
+    const safeStudentId = validateObjectId(studentId, "studentId");
+    const safeAccessId = validateObjectId(accessId, "accessId");
     const safeNote = normalizeTrimmedString(note);
 
     let responsePayload = null;
@@ -544,7 +533,7 @@ export async function listTeacherAccessForStudent(req, res, next) {
     const { studentId } = req.params;
     const { instrument } = req.query;
 
-    const safeStudentId = toObjectIdOrThrow(studentId, "studentId");
+    const safeStudentId = validateObjectId(studentId, "studentId");
     const safeInstrument = getSafeOptionalInstrument(instrument);
 
     if (safeInstrument) {
@@ -589,7 +578,7 @@ export async function listStudentsForTeacher(req, res, next) {
     const teacherId = req.params.teacherId || actorUser._id;
     const { role, status = "active", instrument } = req.query;
 
-    const safeTeacherId = toObjectIdOrThrow(teacherId, "teacherId");
+    const safeTeacherId = validateObjectId(teacherId, "teacherId");
     const safeStatus = getSafeAccessStatus(status);
     const safeRole = getSafeOptionalAccessRole(role);
     const safeInstrument = getSafeOptionalInstrument(instrument);

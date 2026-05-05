@@ -121,11 +121,9 @@ export async function createStudent(req, res, next) {
 
 export async function getStudentById(req, res, next) {
   try {
-    const { studentId } = req.params;
+    const safeStudentId = req.safe.studentId;
 
-    await assertTeacherHasAnyAccess(req.user._id, studentId);
-
-    const student = await Student.findById(studentId).lean();
+    await assertTeacherHasAnyAccess(req.user._id, safeStudentId);
 
     if (!student || student.archivedAt || student.status === "archived") {
       return res.status(404).json({ error: "Student not found" });

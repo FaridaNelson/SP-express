@@ -12,14 +12,19 @@ import mongoose from "mongoose";
  */
 export function validateObjectId(...paramNames) {
   return (req, res, next) => {
+    req.safe = req.safe || {};
+
     for (const name of paramNames) {
       const value = req.params[name];
+
       if (!mongoose.Types.ObjectId.isValid(value)) {
-        return res
-          .status(400)
-          .json({ error: `Invalid ${name}` });
+        return res.status(400).json({ error: `Invalid ${name}` });
       }
+
+      // attach safe ObjectId
+      req.safe[name] = new mongoose.Types.ObjectId(value);
     }
+
     next();
   };
 }
