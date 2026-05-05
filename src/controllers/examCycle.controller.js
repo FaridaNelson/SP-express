@@ -34,8 +34,8 @@ function normalizeTrimmedString(value) {
   return String(value || "").trim();
 }
 
-async function getStudentOrThrow(studentId) {
-  const student = await Student.findById(studentId)
+async function getStudentOrThrow(safeStudentId) {
+  const student = await Student.findById(safeStudentId)
     .select("_id instrument activeExamCycleId status archivedAt")
     .lean();
 
@@ -46,8 +46,8 @@ async function getStudentOrThrow(studentId) {
   return student;
 }
 
-async function getCycleOrThrow(cycleId) {
-  const cycle = await ExamPreparationCycle.findById(cycleId);
+async function getCycleOrThrow(safeCycleId) {
+  const cycle = await ExamPreparationCycle.findById(safeCycleId);
 
   if (!cycle || cycle.archivedAt) {
     throw createHttpError(404, "Exam cycle not found");
@@ -105,10 +105,10 @@ export async function createExamCycle(req, res, next) {
         error: "studentId, instrument, examType, and examGrade are required",
       });
     }
+    const safeStudentId = validateObjectId(studentId, "studentId");
 
-    await assertTeacherCanEdit(teacherId, studentId, instrument);
-
-    await getStudentOrThrow(studentId);
+    await assertTeacherCanEdit(teacherId, safeStudentId, instrument);
+    await getStudentOrThrow(safeStudentId);
     await ensureInstrumentProvided(instrument);
 
     const parsedExamDate = examDate ? normalizeDate(examDate) : null;
@@ -116,7 +116,7 @@ export async function createExamCycle(req, res, next) {
       return res.status(400).json({ error: "Invalid examDate" });
     }
 
-    // 🔥 NEW: initialize requiredElements
+    // NEW: initialize requiredElements
     const requiredElements = getRequiredElementsForExamType(examType);
 
     // Sanitize pieces array
@@ -130,7 +130,7 @@ export async function createExamCycle(req, res, next) {
       : [];
 
     const cycle = await ExamPreparationCycle.create({
-      studentId,
+      studentId: safeStudentId,
       createdByTeacherId: teacherId,
       instrument,
       examType,
@@ -143,7 +143,7 @@ export async function createExamCycle(req, res, next) {
       closingNote: normalizeTrimmedString(closingNote),
       examTaken,
 
-      // ✅ NEW: initialize progressSummary
+      // NEW: initialize progressSummary
       progressSummary: {
         requiredElements,
         completedElements: [],
@@ -158,13 +158,13 @@ export async function createExamCycle(req, res, next) {
     });
 
     if (status === "current") {
-      await Student.findByIdAndUpdate(studentId, {
+      await Student.findByIdAndUpdate(safeStudentId, {
         $set: { activeExamCycleId: cycle._id },
       });
     }
 
     await recomputeExamCycleSummary(cycle._id);
-    await recomputeStudentReadModels(studentId);
+    await recomputeStudentReadModels(safeStudentId);
 
     await AuditLog.create({
       actorUserId: teacherId,
@@ -172,7 +172,7 @@ export async function createExamCycle(req, res, next) {
       action: "CREATE_EXAM_CYCLE",
       targetType: "ExamPreparationCycle",
       targetId: cycle._id,
-      studentId,
+      studentId: safeStudentId,
       metadata: {
         instrument,
         examType,
@@ -193,7 +193,8 @@ export async function createExamCycle(req, res, next) {
 export async function updateExamCycle(req, res, next) {
   try {
     const teacherId = req.user._id;
-    const { cycleId } = req.params;
+    const safeCycleId =
+      req.safe?.cycleId || validateObjectId(req.params.cycleId, "cycleId");
     const {
       instrument,
       examType,
@@ -207,7 +208,7 @@ export async function updateExamCycle(req, res, next) {
       completion,
     } = req.body || {};
 
-    const cycle = await getCycleOrThrow(cycleId);
+    const cycle = await getCycleOrThrow(safeCycleId);
 
     await assertTeacherCanEdit(teacherId, cycle.studentId, cycle.instrument);
 
@@ -349,19 +350,11 @@ export async function listExamCyclesForStudent(req, res, next) {
       await assertTeacherHasAnyAccess(req.user._id, safeStudentId);
     }
 
-    const query = {
+    const cycles = await ExamPreparationCycle.find({
       studentId: safeStudentId,
-    };
-
-    if (!parseBoolean(includeArchived)) {
-      query.archivedAt = null;
-    }
-
-    if (instrument) {
-      query.instrument = instrument;
-    }
-
-    const cycles = await ExamPreparationCycle.find(query)
+      ...(parseBoolean(includeArchived) ? {} : { archivedAt: null }),
+      ...(instrument ? { instrument } : {}),
+    })
       .sort({ createdAt: -1 })
       .lean();
 
@@ -373,9 +366,10 @@ export async function listExamCyclesForStudent(req, res, next) {
 
 export async function getExamCycleById(req, res, next) {
   try {
-    const { cycleId } = req.params;
+    const safeCycleId =
+      req.safe?.cycleId || validateObjectId(req.params.cycleId, "cycleId");
 
-    const cycle = await ExamPreparationCycle.findById(cycleId).lean();
+    const cycle = await ExamPreparationCycle.findById(safeCycleId).lean();
 
     if (!cycle || cycle.archivedAt) {
       return res.status(404).json({ error: "Exam cycle not found" });
@@ -400,14 +394,15 @@ export async function getExamCycleById(req, res, next) {
 export async function completeExamCycle(req, res, next) {
   try {
     const teacherId = req.user._id;
-    const { cycleId } = req.params;
+    const safeCycleId =
+      req.safe?.cycleId || validateObjectId(req.params.cycleId, "cycleId");
     const {
       completion = {},
       closingNote = "",
       examTaken = true,
     } = req.body || {};
 
-    const cycle = await getCycleOrThrow(cycleId);
+    const cycle = await getCycleOrThrow(safeCycleId);
 
     await assertTeacherCanEdit(teacherId, cycle.studentId, cycle.instrument);
 
@@ -458,10 +453,11 @@ export async function completeExamCycle(req, res, next) {
 export async function withdrawExamCycle(req, res, next) {
   try {
     const teacherId = req.user._id;
-    const { cycleId } = req.params;
+    const safeCycleId =
+      req.safe?.cycleId || validateObjectId(req.params.cycleId, "cycleId");
     const { withdrawalReason = "", closingNote = "" } = req.body || {};
 
-    const cycle = await getCycleOrThrow(cycleId);
+    const cycle = await getCycleOrThrow(safeCycleId);
 
     await assertTeacherCanEdit(teacherId, cycle.studentId, cycle.instrument);
 
@@ -511,9 +507,10 @@ export async function withdrawExamCycle(req, res, next) {
 export async function archiveExamCycle(req, res, next) {
   try {
     const teacherId = req.user._id;
-    const { cycleId } = req.params;
+    const safeCycleId =
+      req.safe?.cycleId || validateObjectId(req.params.cycleId, "cycleId");
 
-    const cycle = await getCycleOrThrow(cycleId);
+    const cycle = await getCycleOrThrow(safeCycleId);
 
     await assertTeacherCanEdit(teacherId, cycle.studentId, cycle.instrument);
 

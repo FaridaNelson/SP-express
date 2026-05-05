@@ -10,6 +10,8 @@ import {
 import { recomputeStudentReadModels } from "../services/summary.service.js";
 import { parseEnum, ALLOWED_INSTRUMENTS } from "../utils/queryParams.js";
 import Student from "../models/Student.js";
+import { validateObjectId } from "../utils/validate.js";
+
 
 function createHttpError(status, message) {
   const err = new Error(message);
@@ -149,7 +151,12 @@ async function validateCycleForLesson({
     throw createHttpError(400, "examPreparationCycleId is required");
   }
 
-  const cycle = await ExamPreparationCycle.findById(examPreparationCycleId)
+  const safeCycleId = validateObjectId(
+    examPreparationCycleId,
+    "examPreparationCycleId",
+  );
+
+  const cycle = await ExamPreparationCycle.findById(safeCycleId)
     .select(
       "_id studentId instrument status cycleStatus examType progressSummary archivedAt",
     )
@@ -175,11 +182,11 @@ async function validateCycleForLesson({
 }
 export async function updateLesson(req, res, next) {
   try {
-    const { lessonId } = req.params;
+    const safeLessonId = req.safe?.lessonId || validateObjectId(req.params.lessonId, "lessonId");
     const teacherId = req.user._id;
 
     const lesson = await Lesson.findOne({
-      _id: lessonId,
+      _id: safeLessonId,
       createdByTeacherId: teacherId,
       archivedAt: null,
     });
@@ -323,7 +330,13 @@ export async function upsertLesson(req, res, next) {
       });
     }
 
-    await assertTeacherCanEdit(teacherId, studentId, instrument);
+    const safeStudentId = validateObjectId(studentId, "studentId");
+    const safeCycleId = validateObjectId(
+      examPreparationCycleId,
+      "examPreparationCycleId",
+    );
+
+    await assertTeacherCanEdit(teacherId, safeStudentId, instrument);
 
     const parsedLessonDate = normalizeDateOnly(lessonDate);
     if (!parsedLessonDate) {
@@ -331,8 +344,8 @@ export async function upsertLesson(req, res, next) {
     }
 
     const cycle = await validateCycleForLesson({
-      studentId,
-      examPreparationCycleId,
+      studentId: safeStudentId,
+      examPreparationCycleId: safeCycleId,
       instrument,
     });
 
@@ -382,16 +395,16 @@ export async function upsertLesson(req, res, next) {
     const lesson = await Lesson.findOneAndUpdate(
       {
         createdByTeacherId: teacherId,
-        studentId,
-        examPreparationCycleId,
+        studentId: safeStudentId,
+        examPreparationCycleId: safeCycleId,
         instrument,
         lessonStartAt: parsedLessonStartAt,
       },
       {
         $set: {
           createdByTeacherId: teacherId,
-          studentId,
-          examPreparationCycleId,
+          studentId: safeStudentId,
+          examPreparationCycleId: safeCycleId,
           instrument,
           lessonDate: parsedLessonDate,
           lessonStartAt: parsedLessonStartAt,
@@ -414,7 +427,7 @@ export async function upsertLesson(req, res, next) {
       },
     );
 
-    await recomputeStudentReadModels(studentId);
+    await recomputeStudentReadModels(safeStudentId);
 
     await AuditLog.create({
       actorUserId: teacherId,
@@ -422,9 +435,9 @@ export async function upsertLesson(req, res, next) {
       action: "UPSERT_LESSON",
       targetType: "Lesson",
       targetId: lesson._id,
-      studentId,
+      studentId: safeStudentId,
       metadata: {
-        examPreparationCycleId,
+        examPreparationCycleId: safeCycleId,
         instrument,
         lessonDate: parsedLessonDate,
         lessonStartAt: parsedLessonStartAt,
@@ -443,9 +456,9 @@ export async function upsertLesson(req, res, next) {
 
 export async function getLessonById(req, res, next) {
   try {
-    const { lessonId } = req.params;
+    const safeLessonId = req.safe?.lessonId || validateObjectId(req.params.lessonId, "lessonId");
 
-    const lesson = await Lesson.findById(lessonId).lean();
+    const lesson = await Lesson.findById(safeLessonId).lean();
     if (!lesson || lesson.archivedAt) {
       return res.status(404).json({ error: "Lesson not found" });
     }
@@ -468,21 +481,17 @@ export async function getLessonById(req, res, next) {
 
 export async function listLessonsForStudent(req, res, next) {
   try {
-    const { studentId } = req.params;
+    const safeStudentId = req.safe?.studentId || validateObjectId(req.params.studentId, "studentId");
     const { examPreparationCycleId, cycleId, instrument } = req.query;
 
     const effectiveCycleId = cycleId || examPreparationCycleId;
-
-    if (
-      effectiveCycleId &&
-      !mongoose.Types.ObjectId.isValid(effectiveCycleId)
-    ) {
-      return res.status(400).json({ error: "Invalid cycleId" });
-    }
+    const safeCycleId = effectiveCycleId
+      ? validateObjectId(effectiveCycleId, "cycleId")
+      : null;
 
     // Parent ownership guard — parents may only view their own children's lessons
     if (req.user.role === "parent") {
-      const student = await Student.findById(studentId);
+      const student = await Student.findById(safeStudentId);
       if (!student)
         return res.status(404).json({ message: "Student not found" });
       const isLinked = student.parentIds?.some(
@@ -494,26 +503,18 @@ export async function listLessonsForStudent(req, res, next) {
     if (req.user.role !== "parent") {
       if (instrument) {
         parseEnum(instrument, ALLOWED_INSTRUMENTS, "instrument");
-        await assertTeacherCanView(req.user._id, studentId, instrument);
+        await assertTeacherCanView(req.user._id, safeStudentId, instrument);
       } else {
-        await assertTeacherHasAnyAccess(req.user._id, studentId);
+        await assertTeacherHasAnyAccess(req.user._id, safeStudentId);
       }
     }
 
-    const query = {
-      studentId,
+    const lessons = await Lesson.find({
+      studentId: safeStudentId,
       archivedAt: null,
-    };
-
-    if (effectiveCycleId) {
-      query.examPreparationCycleId = effectiveCycleId;
-    }
-
-    if (instrument) {
-      query.instrument = instrument;
-    }
-
-    const lessons = await Lesson.find(query)
+      ...(safeCycleId ? { examPreparationCycleId: safeCycleId } : {}),
+      ...(instrument ? { instrument } : {}),
+    })
       .sort({ lessonDate: -1, lessonStartAt: -1, createdAt: -1 })
       .lean();
 
@@ -525,30 +526,25 @@ export async function listLessonsForStudent(req, res, next) {
 
 export async function getLatestLessonForStudent(req, res, next) {
   try {
-    const { studentId } = req.params;
+    const safeStudentId = req.safe?.studentId || validateObjectId(req.params.studentId, "studentId");
     const { examPreparationCycleId, instrument } = req.query;
+    const safeCycleId = examPreparationCycleId
+      ? validateObjectId(examPreparationCycleId, "examPreparationCycleId")
+      : null;
 
     if (instrument) {
       parseEnum(instrument, ALLOWED_INSTRUMENTS, "instrument");
-      await assertTeacherCanView(req.user._id, studentId, instrument);
+      await assertTeacherCanView(req.user._id, safeStudentId, instrument);
     } else {
-      await assertTeacherHasAnyAccess(req.user._id, studentId);
+      await assertTeacherHasAnyAccess(req.user._id, safeStudentId);
     }
 
-    const query = {
-      studentId,
+    const lesson = await Lesson.findOne({
+      studentId: safeStudentId,
       archivedAt: null,
-    };
-
-    if (examPreparationCycleId) {
-      query.examPreparationCycleId = examPreparationCycleId;
-    }
-
-    if (instrument) {
-      query.instrument = instrument;
-    }
-
-    const lesson = await Lesson.findOne(query)
+      ...(safeCycleId ? { examPreparationCycleId: safeCycleId } : {}),
+      ...(instrument ? { instrument } : {}),
+    })
       .sort({ lessonDate: -1, lessonStartAt: -1, createdAt: -1 })
       .lean();
 
@@ -561,9 +557,9 @@ export async function getLatestLessonForStudent(req, res, next) {
 export async function archiveLesson(req, res, next) {
   try {
     const teacherId = req.user._id;
-    const { lessonId } = req.params;
+    const safeLessonId = req.safe?.lessonId || validateObjectId(req.params.lessonId, "lessonId");
 
-    const lesson = await Lesson.findById(lessonId);
+    const lesson = await Lesson.findById(safeLessonId);
     if (!lesson || lesson.archivedAt) {
       return res.status(404).json({ error: "Lesson not found" });
     }
