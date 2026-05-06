@@ -1,3 +1,4 @@
+import { validateObjectId } from "../utils/validate.js";
 import PracticeLog from "../models/PracticeLog.js";
 import Student from "../models/Student.js";
 import ExamPreparationCycle from "../models/ExamPreparationCycle.js";
@@ -25,6 +26,10 @@ export async function upsertPracticeLog(req, res, next) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
+    const safeStudentId = validateObjectId(studentId, "studentId");
+    const safeExamCycleId = validateObjectId(examCycleId, "examCycleId");
+    const safeWeekStartDate = normalizeDate(weekStartDate);
+
     const {
       examCycleId,
       weekStartDate,
@@ -37,13 +42,16 @@ export async function upsertPracticeLog(req, res, next) {
     } = req.body;
 
     if (!examCycleId || !weekStartDate || !weekEndDate) {
-      return res
-        .status(400)
-        .json({ error: "examCycleId, weekStartDate, and weekEndDate are required" });
+      return res.status(400).json({
+        error: "examCycleId, weekStartDate, and weekEndDate are required",
+      });
+    }
+    if (!safeWeekStartDate) {
+      return res.status(400).json({ error: "Invalid weekStartDate" });
     }
 
     // --- Fetch cycle for server-side computations ---
-    const cycle = await ExamPreparationCycle.findById(examCycleId)
+    const cycle = await ExamPreparationCycle.findById(safeExamCycleId)
       .select("_id studentId createdAt examDate examType instrument examGrade")
       .lean();
 
@@ -51,8 +59,10 @@ export async function upsertPracticeLog(req, res, next) {
       return res.status(404).json({ error: "Exam cycle not found" });
     }
 
-    if (cycle.studentId.toString() !== studentId) {
-      return res.status(400).json({ error: "Cycle does not belong to this student" });
+    if (String(cycle.studentId) !== String(safeStudentId)) {
+      return res
+        .status(400)
+        .json({ error: "Cycle does not belong to this student" });
     }
 
     // --- Compute weekNumber server-side ---
@@ -95,8 +105,19 @@ export async function upsertPracticeLog(req, res, next) {
     };
 
     const practiceLog = await PracticeLog.findOneAndUpdate(
-      { studentId, examCycleId, weekStartDate },
-      { $set: update, $setOnInsert: { studentId, examCycleId, weekStartDate } },
+      {
+        studentId: safeStudentId,
+        examCycleId: safeExamCycleId,
+        weekStartDate: safeWeekStartDate,
+      },
+      {
+        $set: update,
+        $setOnInsert: {
+          studentId: safeStudentId,
+          examCycleId: safeExamCycleId,
+          weekStartDate: safeWeekStartDate,
+        },
+      },
       { upsert: true, new: true, runValidators: true },
     );
 
