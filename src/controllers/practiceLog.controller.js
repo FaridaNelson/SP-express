@@ -28,6 +28,7 @@ export async function upsertPracticeLog(req, res, next) {
 
     const safeStudentId = validateObjectId(studentId, "studentId");
     const safeExamCycleId = validateObjectId(examCycleId, "examCycleId");
+    const safeWeekStartDate = normalizeDate(weekStartDate);
 
     const {
       examCycleId,
@@ -44,6 +45,9 @@ export async function upsertPracticeLog(req, res, next) {
       return res.status(400).json({
         error: "examCycleId, weekStartDate, and weekEndDate are required",
       });
+    }
+    if (!safeWeekStartDate) {
+      return res.status(400).json({ error: "Invalid weekStartDate" });
     }
 
     // --- Fetch cycle for server-side computations ---
@@ -101,13 +105,17 @@ export async function upsertPracticeLog(req, res, next) {
     };
 
     const practiceLog = await PracticeLog.findOneAndUpdate(
-      { studentId: safeStudentId, examCycleId: safeExamCycleId, weekStartDate },
+      {
+        studentId: safeStudentId,
+        examCycleId: safeExamCycleId,
+        weekStartDate: safeWeekStartDate,
+      },
       {
         $set: update,
         $setOnInsert: {
           studentId: safeStudentId,
           examCycleId: safeExamCycleId,
-          weekStartDate,
+          weekStartDate: safeWeekStartDate,
         },
       },
       { upsert: true, new: true, runValidators: true },
