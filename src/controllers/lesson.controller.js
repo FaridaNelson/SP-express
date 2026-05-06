@@ -144,7 +144,7 @@ function computeLessonTotalScore({
 async function validateCycleForLesson({
   studentId,
   examPreparationCycleId,
-  instrument,
+  safeInstrument,
 }) {
   if (!examPreparationCycleId) {
     throw createHttpError(400, "examPreparationCycleId is required");
@@ -169,7 +169,7 @@ async function validateCycleForLesson({
     throw createHttpError(400, "Exam cycle does not belong to this student");
   }
 
-  if (cycle.instrument !== instrument) {
+  if (cycle.instrument !== safeInstrument) {
     throw createHttpError(400, "Instrument does not match exam cycle");
   }
 
@@ -335,8 +335,13 @@ export async function upsertLesson(req, res, next) {
       examPreparationCycleId,
       "examPreparationCycleId",
     );
+    const safeInstrument = parseEnum(
+      instrument,
+      ALLOWED_INSTRUMENTS,
+      "instrument",
+    );
 
-    await assertTeacherCanEdit(teacherId, safeStudentId, instrument);
+    await assertTeacherCanEdit(teacherId, safeStudentId, safeInstrument);
 
     const parsedLessonDate = normalizeDateOnly(lessonDate);
     if (!parsedLessonDate) {
@@ -346,7 +351,7 @@ export async function upsertLesson(req, res, next) {
     const cycle = await validateCycleForLesson({
       studentId: safeStudentId,
       examPreparationCycleId: safeCycleId,
-      instrument,
+      safeInstrument,
     });
 
     const requiredElements = getRequiredElementsForCycle(cycle);
@@ -392,11 +397,6 @@ export async function upsertLesson(req, res, next) {
       requiredElements,
     });
 
-    const safeInstrument = parseEnum(
-      instrument,
-      ALLOWED_INSTRUMENTS,
-      "instrument",
-    );
     const lesson = await Lesson.findOneAndUpdate(
       {
         createdByTeacherId: teacherId,
@@ -497,6 +497,10 @@ export async function listLessonsForStudent(req, res, next) {
       ? validateObjectId(effectiveCycleId, "cycleId")
       : null;
 
+    const safeInstrument = instrument
+      ? parseEnum(instrument, ALLOWED_INSTRUMENTS, "instrument")
+      : undefined;
+
     // Parent ownership guard — parents may only view their own children's lessons
     if (req.user.role === "parent") {
       const student = await Student.findById(safeStudentId);
@@ -511,7 +515,7 @@ export async function listLessonsForStudent(req, res, next) {
     if (req.user.role !== "parent") {
       if (instrument) {
         parseEnum(instrument, ALLOWED_INSTRUMENTS, "instrument");
-        await assertTeacherCanView(req.user._id, safeStudentId, instrument);
+        await assertTeacherCanView(req.user._id, safeStudentId, safeInstrument);
       } else {
         await assertTeacherHasAnyAccess(req.user._id, safeStudentId);
       }
@@ -521,7 +525,7 @@ export async function listLessonsForStudent(req, res, next) {
       studentId: safeStudentId,
       archivedAt: null,
       ...(safeCycleId ? { examPreparationCycleId: safeCycleId } : {}),
-      ...(instrument ? { instrument } : {}),
+      ...(safeInstrument ? { instrument: safeInstrument } : {}),
     })
       .sort({ lessonDate: -1, lessonStartAt: -1, createdAt: -1 })
       .lean();
@@ -542,9 +546,13 @@ export async function getLatestLessonForStudent(req, res, next) {
       ? validateObjectId(examPreparationCycleId, "examPreparationCycleId")
       : null;
 
+    const safeInstrument = instrument
+      ? parseEnum(instrument, ALLOWED_INSTRUMENTS, "instrument")
+      : undefined;
+
     if (instrument) {
       parseEnum(instrument, ALLOWED_INSTRUMENTS, "instrument");
-      await assertTeacherCanView(req.user._id, safeStudentId, instrument);
+      await assertTeacherCanView(req.user._id, safeStudentId, safeInstrument);
     } else {
       await assertTeacherHasAnyAccess(req.user._id, safeStudentId);
     }
@@ -553,7 +561,7 @@ export async function getLatestLessonForStudent(req, res, next) {
       studentId: safeStudentId,
       archivedAt: null,
       ...(safeCycleId ? { examPreparationCycleId: safeCycleId } : {}),
-      ...(instrument ? { instrument } : {}),
+      ...(safeInstrument ? { instrument: safeInstrument } : {}),
     })
       .sort({ lessonDate: -1, lessonStartAt: -1, createdAt: -1 })
       .lean();
