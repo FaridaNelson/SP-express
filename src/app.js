@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import csrf from "csurf";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
@@ -39,7 +40,11 @@ app.use(
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeadeallowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-CSRF-Token",
+    ],
   }),
 );
 
@@ -57,7 +62,7 @@ app.use((req, _res, next) => {
   }
   next();
 });
-app.use(cookieParser());
+
 app.set("trust proxy", 1);
 app.use(
   helmet({
@@ -100,6 +105,28 @@ const globalLimiter =
         legacyHeaders: false,
         message: { error: "Too many requests, please slow down" },
       });
+
+app.use(cookieParser());
+
+const csrfProtection = csrf({
+  cookie: {
+    httpOnly: true,
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    secure: process.env.NODE_ENV === "production",
+  },
+});
+
+app.use((req, res, next) => {
+  if (["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+    return next();
+  }
+
+  return csrfProtection(req, res, next);
+});
+
+app.get("/api/csrf-token", csrfProtection, (req, res) => {
+  res.json({ csrfToken: req.csrfToken() });
+});
 
 app.use("/api/", globalLimiter);
 
