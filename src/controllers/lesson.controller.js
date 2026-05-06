@@ -12,7 +12,6 @@ import { parseEnum, ALLOWED_INSTRUMENTS } from "../utils/queryParams.js";
 import Student from "../models/Student.js";
 import { validateObjectId } from "../utils/validate.js";
 
-
 function createHttpError(status, message) {
   const err = new Error(message);
   err.status = status;
@@ -182,7 +181,8 @@ async function validateCycleForLesson({
 }
 export async function updateLesson(req, res, next) {
   try {
-    const safeLessonId = req.safe?.lessonId || validateObjectId(req.params.lessonId, "lessonId");
+    const safeLessonId =
+      req.safe?.lessonId || validateObjectId(req.params.lessonId, "lessonId");
     const teacherId = req.user._id;
 
     const lesson = await Lesson.findOne({
@@ -392,12 +392,17 @@ export async function upsertLesson(req, res, next) {
       requiredElements,
     });
 
+    const safeInstrument = parseEnum(
+      instrument,
+      ALLOWED_INSTRUMENTS,
+      "instrument",
+    );
     const lesson = await Lesson.findOneAndUpdate(
       {
         createdByTeacherId: teacherId,
         studentId: safeStudentId,
         examPreparationCycleId: safeCycleId,
-        instrument,
+        instrument: safeInstrument,
         lessonStartAt: parsedLessonStartAt,
       },
       {
@@ -405,7 +410,7 @@ export async function upsertLesson(req, res, next) {
           createdByTeacherId: teacherId,
           studentId: safeStudentId,
           examPreparationCycleId: safeCycleId,
-          instrument,
+          instrument: safeInstrument,
           lessonDate: parsedLessonDate,
           lessonStartAt: parsedLessonStartAt,
           lessonEndAt: parsedLessonEndAt,
@@ -438,7 +443,7 @@ export async function upsertLesson(req, res, next) {
       studentId: safeStudentId,
       metadata: {
         examPreparationCycleId: safeCycleId,
-        instrument,
+        instrument: safeInstrument,
         lessonDate: parsedLessonDate,
         lessonStartAt: parsedLessonStartAt,
         lessonEndAt: parsedLessonEndAt,
@@ -456,7 +461,8 @@ export async function upsertLesson(req, res, next) {
 
 export async function getLessonById(req, res, next) {
   try {
-    const safeLessonId = req.safe?.lessonId || validateObjectId(req.params.lessonId, "lessonId");
+    const safeLessonId =
+      req.safe?.lessonId || validateObjectId(req.params.lessonId, "lessonId");
 
     const lesson = await Lesson.findById(safeLessonId).lean();
     if (!lesson || lesson.archivedAt) {
@@ -481,7 +487,9 @@ export async function getLessonById(req, res, next) {
 
 export async function listLessonsForStudent(req, res, next) {
   try {
-    const safeStudentId = req.safe?.studentId || validateObjectId(req.params.studentId, "studentId");
+    const safeStudentId =
+      req.safe?.studentId ||
+      validateObjectId(req.params.studentId, "studentId");
     const { examPreparationCycleId, cycleId, instrument } = req.query;
 
     const effectiveCycleId = cycleId || examPreparationCycleId;
@@ -526,7 +534,9 @@ export async function listLessonsForStudent(req, res, next) {
 
 export async function getLatestLessonForStudent(req, res, next) {
   try {
-    const safeStudentId = req.safe?.studentId || validateObjectId(req.params.studentId, "studentId");
+    const safeStudentId =
+      req.safe?.studentId ||
+      validateObjectId(req.params.studentId, "studentId");
     const { examPreparationCycleId, instrument } = req.query;
     const safeCycleId = examPreparationCycleId
       ? validateObjectId(examPreparationCycleId, "examPreparationCycleId")
@@ -557,7 +567,8 @@ export async function getLatestLessonForStudent(req, res, next) {
 export async function archiveLesson(req, res, next) {
   try {
     const teacherId = req.user._id;
-    const safeLessonId = req.safe?.lessonId || validateObjectId(req.params.lessonId, "lessonId");
+    const safeLessonId =
+      req.safe?.lessonId || validateObjectId(req.params.lessonId, "lessonId");
 
     const lesson = await Lesson.findById(safeLessonId);
     if (!lesson || lesson.archivedAt) {
