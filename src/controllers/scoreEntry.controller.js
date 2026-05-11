@@ -16,6 +16,7 @@ export async function createScoreEntry(req, res, next) {
     const {
       studentId,
       examPreparationCycleId,
+      lessonId,
       instrument,
       lessonDate,
       elementId,
@@ -50,6 +51,9 @@ export async function createScoreEntry(req, res, next) {
       "examPreparationCycleId",
     );
 
+    const safeLessonId = lessonId
+      ? validateObjectId(lessonId, "lessonId")
+      : null;
     await assertTeacherCanEdit(teacherId, safeStudentId, instrument);
 
     const parsedLessonDate = normalizeDate(lessonDate);
@@ -73,29 +77,48 @@ export async function createScoreEntry(req, res, next) {
       return res.status(400).json({ error: "Instrument mismatch" });
     }
 
-    const entry = await ScoreEntry.create({
-      createdByTeacherId: teacherId,
-      studentId: safeStudentId,
-      examPreparationCycleId: safeCycleId,
-      instrument,
-      lessonDate: parsedLessonDate,
-      elementId,
-      elementLabel,
-      score,
-      tempoCurrent,
-      tempoGoal,
-      dynamics,
-      articulation,
-      sightReadingNotes,
-      auralTrainingNotes,
-    });
+    const entry = await ScoreEntry.findOneAndUpdate(
+      {
+        createdByTeacherId: teacherId,
+        studentId: safeStudentId,
+        examPreparationCycleId: safeCycleId,
+        lessonId: safeLessonId,
+        elementId,
+        archivedAt: null,
+      },
+      {
+        $set: {
+          instrument,
+          lessonDate: parsedLessonDate,
+          elementLabel: elementLabel || "",
+          score,
+          tempoCurrent,
+          tempoGoal,
+          dynamics,
+          articulation,
+          sightReadingNotes,
+          auralTrainingNotes,
+        },
+        $setOnInsert: {
+          createdByTeacherId: teacherId,
+          studentId: safeStudentId,
+          examPreparationCycleId: safeCycleId,
+          lessonId: safeLessonId,
+        },
+      },
+      {
+        new: true,
+        upsert: true,
+        setDefaultsOnInsert: true,
+      },
+    );
 
     await recomputeStudentReadModels(safeStudentId);
 
     await AuditLog.create({
       actorUserId: teacherId,
       actorRoles: Array.isArray(req.user.roles) ? req.user.roles : [],
-      action: "CREATE_SCORE_ENTRY",
+      action: "UPSERT_SCORE_ENTRY",
       targetType: "ScoreEntry",
       targetId: entry._id,
       studentId: safeStudentId,

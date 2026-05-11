@@ -126,6 +126,8 @@ export async function createExamCycle(req, res, next) {
           label: String(p.label || ""),
           title: String(p.title || ""),
           composer: String(p.composer || ""),
+          publication: String(p.publication || "").trim(),
+          isCustom: Boolean(p.isCustom),
         }))
       : [];
 
