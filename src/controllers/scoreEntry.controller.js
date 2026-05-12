@@ -11,6 +11,20 @@ function normalizeDate(value) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function normalizeString(value, fieldName) {
+  if (typeof value !== "string") {
+    throw new Error(`${fieldName} must be a string`);
+  }
+
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    throw new Error(`${fieldName} cannot be empty`);
+  }
+
+  return trimmed;
+}
+
 export async function createScoreEntry(req, res, next) {
   try {
     const {
@@ -54,7 +68,12 @@ export async function createScoreEntry(req, res, next) {
     const safeLessonId = lessonId
       ? validateObjectId(lessonId, "lessonId")
       : null;
-    await assertTeacherCanEdit(teacherId, safeStudentId, instrument);
+    const safeInstrument = normalizeString(instrument, "instrument");
+    const safeElementId = normalizeString(elementId, "elementId");
+    const safeElementLabel =
+      typeof elementLabel === "string" ? elementLabel.trim() : "";
+
+    await assertTeacherCanEdit(teacherId, safeStudentId, safeInstrument);
 
     const parsedLessonDate = normalizeDate(lessonDate);
     if (!parsedLessonDate) {
@@ -73,7 +92,7 @@ export async function createScoreEntry(req, res, next) {
       return res.status(400).json({ error: "Cycle mismatch" });
     }
 
-    if (cycle.instrument !== instrument) {
+    if (cycle.instrument !== safeInstrument) {
       return res.status(400).json({ error: "Instrument mismatch" });
     }
 
@@ -83,14 +102,14 @@ export async function createScoreEntry(req, res, next) {
         studentId: safeStudentId,
         examPreparationCycleId: safeCycleId,
         lessonId: safeLessonId,
-        elementId,
+        elementId: safeElementId,
         archivedAt: null,
       },
       {
         $set: {
-          instrument,
+          instrument: safeInstrument,
           lessonDate: parsedLessonDate,
-          elementLabel: elementLabel || "",
+          elementLabel: safeElementLabel,
           score,
           tempoCurrent,
           tempoGoal,
@@ -124,10 +143,10 @@ export async function createScoreEntry(req, res, next) {
       studentId: safeStudentId,
       metadata: {
         examPreparationCycleId: safeCycleId,
-        instrument,
+        instrument: safeInstrument,
         lessonDate: parsedLessonDate,
-        elementId,
-        elementLabel: elementLabel || "",
+        elementId: safeElementId,
+        elementLabel: safeElementLabel,
       },
       ipAddress: req.ip,
       userAgent: req.get("user-agent") || "",
