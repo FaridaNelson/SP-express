@@ -171,6 +171,8 @@ const examPreparationCycleSchema = new mongoose.Schema(
           label: { type: String, trim: true },
           title: { type: String, default: "", trim: true },
           composer: { type: String, default: "", trim: true },
+          publication: { type: String, default: "", trim: true },
+          isCustom: { type: Boolean, default: false },
         },
       ],
       default: [],

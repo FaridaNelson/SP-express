@@ -30,6 +30,13 @@ const scoreEntrySchema = new mongoose.Schema(
       index: true,
     },
 
+    lessonId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Lesson",
+      default: null,
+      index: true,
+    },
+
     instrument: {
       type: String,
       required: true,
@@ -139,7 +146,7 @@ scoreEntrySchema.index({
 scoreEntrySchema.index(
   {
     examPreparationCycleId: 1,
-    elementId: 1,
+    lessonId: 1,
     lessonDate: 1,
     createdByTeacherId: 1,
   },

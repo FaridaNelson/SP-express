@@ -8,4 +8,4 @@ CLAUDE.md
 
 # Terraform
 infra/terraform.tfvars
-infra/.terraform/
+infra/.terraform/dump/

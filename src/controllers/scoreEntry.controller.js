@@ -11,11 +11,26 @@ function normalizeDate(value) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function normalizeString(value, fieldName) {
+  if (typeof value !== "string") {
+    throw new Error(`${fieldName} must be a string`);
+  }
+
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    throw new Error(`${fieldName} cannot be empty`);
+  }
+
+  return trimmed;
+}
+
 export async function createScoreEntry(req, res, next) {
   try {
     const {
       studentId,
       examPreparationCycleId,
+      lessonId,
       instrument,
       lessonDate,
       elementId,
@@ -50,7 +65,15 @@ export async function createScoreEntry(req, res, next) {
       "examPreparationCycleId",
     );
 
-    await assertTeacherCanEdit(teacherId, safeStudentId, instrument);
+    const safeLessonId = lessonId
+      ? validateObjectId(lessonId, "lessonId")
+      : null;
+    const safeInstrument = normalizeString(instrument, "instrument");
+    const safeElementId = normalizeString(elementId, "elementId");
+    const safeElementLabel =
+      typeof elementLabel === "string" ? elementLabel.trim() : "";
+
+    await assertTeacherCanEdit(teacherId, safeStudentId, safeInstrument);
 
     const parsedLessonDate = normalizeDate(lessonDate);
     if (!parsedLessonDate) {
@@ -69,42 +92,61 @@ export async function createScoreEntry(req, res, next) {
       return res.status(400).json({ error: "Cycle mismatch" });
     }
 
-    if (cycle.instrument !== instrument) {
+    if (cycle.instrument !== safeInstrument) {
       return res.status(400).json({ error: "Instrument mismatch" });
     }
 
-    const entry = await ScoreEntry.create({
-      createdByTeacherId: teacherId,
-      studentId: safeStudentId,
-      examPreparationCycleId: safeCycleId,
-      instrument,
-      lessonDate: parsedLessonDate,
-      elementId,
-      elementLabel,
-      score,
-      tempoCurrent,
-      tempoGoal,
-      dynamics,
-      articulation,
-      sightReadingNotes,
-      auralTrainingNotes,
-    });
+    const entry = await ScoreEntry.findOneAndUpdate(
+      {
+        createdByTeacherId: teacherId,
+        studentId: safeStudentId,
+        examPreparationCycleId: safeCycleId,
+        lessonId: safeLessonId,
+        elementId: safeElementId,
+        archivedAt: null,
+      },
+      {
+        $set: {
+          instrument: safeInstrument,
+          lessonDate: parsedLessonDate,
+          elementLabel: safeElementLabel,
+          score,
+          tempoCurrent,
+          tempoGoal,
+          dynamics,
+          articulation,
+          sightReadingNotes,
+          auralTrainingNotes,
+        },
+        $setOnInsert: {
+          createdByTeacherId: teacherId,
+          studentId: safeStudentId,
+          examPreparationCycleId: safeCycleId,
+          lessonId: safeLessonId,
+        },
+      },
+      {
+        new: true,
+        upsert: true,
+        setDefaultsOnInsert: true,
+      },
+    );
 
     await recomputeStudentReadModels(safeStudentId);
 
     await AuditLog.create({
       actorUserId: teacherId,
       actorRoles: Array.isArray(req.user.roles) ? req.user.roles : [],
-      action: "CREATE_SCORE_ENTRY",
+      action: "UPSERT_SCORE_ENTRY",
       targetType: "ScoreEntry",
       targetId: entry._id,
       studentId: safeStudentId,
       metadata: {
         examPreparationCycleId: safeCycleId,
-        instrument,
+        instrument: safeInstrument,
         lessonDate: parsedLessonDate,
-        elementId,
-        elementLabel: elementLabel || "",
+        elementId: safeElementId,
+        elementLabel: safeElementLabel,
       },
       ipAddress: req.ip,
       userAgent: req.get("user-agent") || "",
