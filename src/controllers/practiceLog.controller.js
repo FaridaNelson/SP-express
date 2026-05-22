@@ -7,6 +7,18 @@ export async function upsertPracticeLog(req, res, next) {
   try {
     const studentId = req.params.id;
     const userId = req.user._id;
+
+    function normalizeDate(value) {
+      if (typeof value !== "string") return null;
+
+      const trimmed = value.trim();
+
+      // Accept only YYYY-MM-DD
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
+
+      return trimmed;
+    }
+
     const adminBypass =
       Array.isArray(req.user?.roles) && req.user.roles.includes("admin");
 
@@ -26,10 +38,6 @@ export async function upsertPracticeLog(req, res, next) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
-    const safeStudentId = validateObjectId(studentId, "studentId");
-    const safeExamCycleId = validateObjectId(examCycleId, "examCycleId");
-    const safeWeekStartDate = normalizeDate(weekStartDate);
-
     const {
       examCycleId,
       weekStartDate,
@@ -40,6 +48,10 @@ export async function upsertPracticeLog(req, res, next) {
       homeworkTaskList,
       totalDaysPracticed,
     } = req.body;
+
+    const safeStudentId = validateObjectId(studentId, "studentId");
+    const safeExamCycleId = validateObjectId(examCycleId, "examCycleId");
+    const safeWeekStartDate = normalizeDate(weekStartDate);
 
     if (!examCycleId || !weekStartDate || !weekEndDate) {
       return res.status(400).json({
