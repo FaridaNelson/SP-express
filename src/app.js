@@ -24,6 +24,7 @@ const app = express();
 const allowedOrigins = [
   "https://studiopulse.co",
   "https://www.studiopulse.co",
+  "https://api.studiopulse.co",
   "http://localhost:3000",
   "http://127.0.0.1:3000",
 ];
