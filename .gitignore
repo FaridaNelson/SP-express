@@ -4,7 +4,8 @@ node_modules/
 .DS_Store
 c.txt
 cookies.txt
-CLAUDE.md
+dump/
+*.bson
 
 # Terraform
 infra/terraform.tfvars
