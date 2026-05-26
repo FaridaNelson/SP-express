@@ -25,6 +25,214 @@ function normalizeString(value, fieldName) {
   return trimmed;
 }
 
+function buildAiText({
+  instrument,
+  lessonDate,
+  elementLabel,
+  elementType,
+  score,
+  criteria = [],
+  notes = {},
+}) {
+  const dateText = lessonDate?.toISOString?.().slice(0, 10) || "";
+
+  const criteriaText = criteria
+    .map(
+      (item) => `${item.label || item.key}: ${item.value || item.score || ""}`,
+    )
+    .filter(Boolean)
+    .join(". ");
+
+  const notesText = Object.entries(notes)
+    .map(([key, value]) => {
+      if (Array.isArray(value)) {
+        return `${key}: ${JSON.stringify(value)}`;
+      }
+
+      if (typeof value === "object" && value !== null) {
+        return `${key}: ${JSON.stringify(value)}`;
+      }
+
+      return `${key}: ${value}`;
+    })
+    .join(". ");
+
+  return [
+    `${instrument} lesson on ${dateText}.`,
+    `${elementType}: ${elementLabel}.`,
+    `Overall score: ${score}.`,
+    criteriaText,
+    notesText,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+const PIECE_ELEMENT_IDS = ["pieceA", "pieceB", "pieceC", "pieceD"];
+
+function buildScoreEntrySetPayload({
+  safeInstrument,
+  parsedLessonDate,
+  safeElementId,
+  safeElementLabel,
+  score,
+  tempoCurrent,
+  tempoGoal,
+  pieceCriteria,
+  sightReadingNotes,
+  auralTrainingNotes,
+}) {
+  const setPayload = {
+    instrument: safeInstrument,
+    lessonDate: parsedLessonDate,
+    elementLabel: safeElementLabel,
+    score,
+  };
+
+  const unsetPayload = {};
+
+  if (PIECE_ELEMENT_IDS.includes(safeElementId)) {
+    setPayload.elementType = "piece";
+    setPayload.criteria = pieceCriteria || [];
+    setPayload.notes = {
+      tempoCurrent: tempoCurrent ?? null,
+      tempoGoal: tempoGoal ?? null,
+    };
+    setPayload.tempoCurrent = tempoCurrent ?? null;
+    setPayload.tempoGoal = tempoGoal ?? null;
+
+    setPayload.aiText = buildAiText({
+      instrument: safeInstrument,
+      lessonDate: parsedLessonDate,
+      elementLabel: safeElementLabel || safeElementId,
+      elementType: "piece",
+      score,
+      criteria: pieceCriteria || [],
+      notes: setPayload.notes,
+    });
+
+    unsetPayload.sightReadingNotes = "";
+    unsetPayload.auralTrainingNotes = "";
+  } else if (safeElementId === "sightReading") {
+    const normalizedSightReadingNotes = {
+      pitchAccuracy: sightReadingNotes?.pitchAccuracy || "",
+      rhythmAccuracy: sightReadingNotes?.rhythmAccuracy || "",
+      adequateTempo: sightReadingNotes?.adequateTempo || "",
+      confidentPresentation: sightReadingNotes?.confidentPresentation || "",
+    };
+
+    setPayload.elementType = "sightReading";
+    setPayload.sightReadingNotes = normalizedSightReadingNotes;
+    setPayload.notes = normalizedSightReadingNotes;
+    setPayload.criteria = [
+      {
+        key: "pitchAccuracy",
+        label: "Pitch Accuracy",
+        value: normalizedSightReadingNotes.pitchAccuracy,
+      },
+      {
+        key: "rhythmAccuracy",
+        label: "Rhythm Accuracy",
+        value: normalizedSightReadingNotes.rhythmAccuracy,
+      },
+      {
+        key: "adequateTempo",
+        label: "Adequate Tempo",
+        value: normalizedSightReadingNotes.adequateTempo,
+      },
+      {
+        key: "confidentPresentation",
+        label: "Confident Presentation",
+        value: normalizedSightReadingNotes.confidentPresentation,
+      },
+    ];
+    unsetPayload.auralTrainingNotes = "";
+    unsetPayload.tempoCurrent = "";
+    unsetPayload.tempoGoal = "";
+
+    setPayload.aiText = buildAiText({
+      instrument: safeInstrument,
+      lessonDate: parsedLessonDate,
+      elementLabel: safeElementLabel || "Sight Reading",
+      elementType: "sightReading",
+      score,
+      criteria: setPayload.criteria,
+      notes: setPayload.notes,
+    });
+  } else if (safeElementId === "auralTraining") {
+    const normalizedAuralTrainingNotes = {
+      rhythmAccuracy: auralTrainingNotes?.rhythmAccuracy || "",
+      singingInPitch: auralTrainingNotes?.singingInPitch || "",
+      musicalMemory: auralTrainingNotes?.musicalMemory || "",
+      musicalPerceptiveness: auralTrainingNotes?.musicalPerceptiveness || "",
+    };
+
+    setPayload.elementType = "auralTraining";
+    setPayload.auralTrainingNotes = normalizedAuralTrainingNotes;
+    setPayload.notes = normalizedAuralTrainingNotes;
+    setPayload.criteria = [
+      {
+        key: "rhythmAccuracy",
+        label: "Rhythm Accuracy",
+        value: normalizedAuralTrainingNotes.rhythmAccuracy,
+      },
+      {
+        key: "singingInPitch",
+        label: "Singing in Pitch",
+        value: normalizedAuralTrainingNotes.singingInPitch,
+      },
+      {
+        key: "musicalMemory",
+        label: "Musical Memory",
+        value: normalizedAuralTrainingNotes.musicalMemory,
+      },
+      {
+        key: "musicalPerceptiveness",
+        label: "Musical Perceptiveness",
+        value: normalizedAuralTrainingNotes.musicalPerceptiveness,
+      },
+    ];
+    unsetPayload.sightReadingNotes = "";
+    unsetPayload.tempoCurrent = "";
+    unsetPayload.tempoGoal = "";
+
+    setPayload.aiText = buildAiText({
+      instrument: safeInstrument,
+      lessonDate: parsedLessonDate,
+      elementLabel: safeElementLabel || "Aural Training",
+      elementType: "auralTraining",
+      score,
+      criteria: setPayload.criteria,
+      notes: setPayload.notes,
+    });
+  } else if (safeElementId === "scales") {
+    setPayload.elementType = "scales";
+
+    setPayload.notes = {
+      tempoCurrent: tempoCurrent ?? null,
+      tempoGoal: tempoGoal ?? null,
+    };
+
+    setPayload.tempoCurrent = tempoCurrent ?? null;
+    setPayload.tempoGoal = tempoGoal ?? null;
+
+    setPayload.aiText = buildAiText({
+      instrument: safeInstrument,
+      lessonDate: parsedLessonDate,
+      elementLabel: safeElementLabel || "Scales",
+      elementType: "scales",
+      score,
+      notes: setPayload.notes,
+    });
+
+    unsetPayload.criteria = "";
+    unsetPayload.sightReadingNotes = "";
+    unsetPayload.auralTrainingNotes = "";
+  }
+
+  return { setPayload, unsetPayload };
+}
+
 export async function createScoreEntry(req, res, next) {
   try {
     const {
@@ -38,8 +246,7 @@ export async function createScoreEntry(req, res, next) {
       score,
       tempoCurrent,
       tempoGoal,
-      dynamics,
-      articulation,
+      pieceCriteria,
       sightReadingNotes,
       auralTrainingNotes,
     } = req.body || {};
@@ -96,28 +303,34 @@ export async function createScoreEntry(req, res, next) {
       return res.status(400).json({ error: "Instrument mismatch" });
     }
 
+    const { setPayload, unsetPayload } = buildScoreEntrySetPayload({
+      safeInstrument,
+      parsedLessonDate,
+      safeElementId,
+      safeElementLabel,
+      score,
+      tempoCurrent,
+      tempoGoal,
+      sightReadingNotes,
+      auralTrainingNotes,
+      pieceCriteria,
+    });
+
     const entry = await ScoreEntry.findOneAndUpdate(
       {
         createdByTeacherId: teacherId,
         studentId: safeStudentId,
         examPreparationCycleId: safeCycleId,
         lessonId: safeLessonId,
+        lessonDate: parsedLessonDate,
         elementId: safeElementId,
         archivedAt: null,
       },
       {
-        $set: {
-          instrument: safeInstrument,
-          lessonDate: parsedLessonDate,
-          elementLabel: safeElementLabel,
-          score,
-          tempoCurrent,
-          tempoGoal,
-          dynamics,
-          articulation,
-          sightReadingNotes,
-          auralTrainingNotes,
-        },
+        $set: setPayload,
+        ...(Object.keys(unsetPayload).length > 0
+          ? { $unset: unsetPayload }
+          : {}),
         $setOnInsert: {
           createdByTeacherId: teacherId,
           studentId: safeStudentId,

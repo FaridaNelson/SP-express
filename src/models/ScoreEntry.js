@@ -80,6 +80,39 @@ const scoreEntrySchema = new mongoose.Schema(
       default: null,
     },
 
+    elementType: {
+      type: String,
+      enum: ["piece", "scales", "sightReading", "auralTraining"],
+      required: true,
+      index: true,
+    },
+
+    criteria: [
+      {
+        key: { type: String, trim: true, default: "" },
+        label: { type: String, trim: true, default: "" },
+        value: { type: String, trim: true, maxlength: 1000, default: "" },
+        score: { type: Number, min: 0, max: 100, default: null },
+      },
+    ],
+
+    notes: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
+
+    aiText: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: 8000,
+    },
+
+    embedding: {
+      type: [Number],
+      default: undefined,
+    },
+
     tempoCurrent: {
       type: Number,
       min: 0,
@@ -91,9 +124,6 @@ const scoreEntrySchema = new mongoose.Schema(
       min: 0,
       default: null,
     },
-
-    dynamics: { type: String, trim: true, maxlength: 500, default: "" },
-    articulation: { type: String, trim: true, maxlength: 500, default: "" },
 
     sightReadingNotes: {
       pitchAccuracy: TEXT_NOTE_FIELD,
