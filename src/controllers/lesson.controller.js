@@ -59,7 +59,8 @@ function normalizeScales(scales = {}) {
     items: Array.isArray(scales?.items)
       ? scales.items.map((item) => ({
           scaleId: item.scaleId,
-          ready: item.ready === true,
+          ready:
+            item.ready === true ? true : item.ready === false ? false : null,
           note: item.note ?? null,
         }))
       : [],
@@ -293,6 +294,142 @@ export async function updateLesson(req, res, next) {
     });
 
     return res.json({ lesson });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function createLesson(req, res, next) {
+  try {
+    const teacherId = req.user._id;
+    const {
+      studentId,
+      examPreparationCycleId,
+      instrument,
+      lessonDate,
+      lessonStartAt,
+      lessonEndAt = null,
+      lessonType = "regular",
+      share = false,
+      pieces = [],
+      scales = { percent: 0, items: [] },
+      sightReading = null,
+      auralTraining = null,
+      teacherNarrative = null,
+    } = req.body || {};
+
+    if (
+      !studentId ||
+      !examPreparationCycleId ||
+      !instrument ||
+      !lessonDate ||
+      !lessonStartAt
+    ) {
+      return res.status(400).json({
+        error:
+          "studentId, examPreparationCycleId, instrument, lessonDate, and lessonStartAt are required",
+      });
+    }
+
+    const safeStudentId = validateObjectId(studentId, "studentId");
+    const safeCycleId = validateObjectId(
+      examPreparationCycleId,
+      "examPreparationCycleId",
+    );
+    const safeInstrument = parseEnum(
+      instrument,
+      ALLOWED_INSTRUMENTS,
+      "instrument",
+    );
+
+    await assertTeacherCanEdit(teacherId, safeStudentId, safeInstrument);
+
+    const parsedLessonDate = normalizeDateOnly(lessonDate);
+    if (!parsedLessonDate) {
+      return res.status(400).json({ error: "Invalid lessonDate" });
+    }
+
+    const parsedLessonStartAt = normalizeDateTime(lessonStartAt);
+    if (!parsedLessonStartAt) {
+      return res.status(400).json({ error: "Invalid lessonStartAt" });
+    }
+
+    const parsedLessonEndAt = lessonEndAt
+      ? normalizeDateTime(lessonEndAt)
+      : null;
+
+    if (lessonEndAt && !parsedLessonEndAt) {
+      return res.status(400).json({ error: "Invalid lessonEndAt" });
+    }
+
+    if (
+      parsedLessonEndAt &&
+      parsedLessonEndAt.getTime() <= parsedLessonStartAt.getTime()
+    ) {
+      return res.status(400).json({
+        error: "lessonEndAt must be later than lessonStartAt",
+      });
+    }
+
+    const cycle = await validateCycleForLesson({
+      studentId: safeStudentId,
+      examPreparationCycleId: safeCycleId,
+      safeInstrument,
+    });
+
+    const requiredElements = getRequiredElementsForCycle(cycle);
+    const normalizedScales = normalizeScales(scales);
+    const normalizedPieces = Array.isArray(pieces) ? pieces : [];
+
+    const computedLessonTotalScore = computeLessonTotalScore({
+      pieces: normalizedPieces,
+      scales: normalizedScales,
+      sightReading,
+      auralTraining,
+      requiredElements,
+    });
+
+    const lesson = await Lesson.create({
+      createdByTeacherId: teacherId,
+      studentId: safeStudentId,
+      examPreparationCycleId: safeCycleId,
+      instrument: safeInstrument,
+      lessonDate: parsedLessonDate,
+      lessonStartAt: parsedLessonStartAt,
+      lessonEndAt: parsedLessonEndAt,
+      lessonType,
+      share: !!share,
+      pieces: normalizedPieces,
+      scales: normalizedScales,
+      sightReading,
+      auralTraining,
+      teacherNarrative,
+      lessonTotalScore: computedLessonTotalScore,
+      archivedAt: null,
+    });
+
+    await recomputeStudentReadModels(safeStudentId);
+
+    await AuditLog.create({
+      actorUserId: teacherId,
+      actorRoles: Array.isArray(req.user.roles) ? req.user.roles : [],
+      action: "CREATE_LESSON",
+      targetType: "Lesson",
+      targetId: lesson._id,
+      studentId: safeStudentId,
+      metadata: {
+        examPreparationCycleId: safeCycleId,
+        instrument: safeInstrument,
+        lessonDate: parsedLessonDate,
+        lessonStartAt: parsedLessonStartAt,
+        lessonEndAt: parsedLessonEndAt,
+        lessonType,
+      },
+      ipAddress: req.ip,
+      userAgent: req.get("user-agent") || "",
+    });
+
+    return res.status(201).json({ lesson });
   } catch (err) {
     next(err);
   }

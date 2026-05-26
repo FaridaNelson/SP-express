@@ -212,9 +212,13 @@ function buildScoreEntrySetPayload({
     setPayload.notes = {
       items: Object.entries(scalesNotes || {}).map(([scaleId, value]) => ({
         scaleId,
-        ready: value?.ready === true,
-        currentTempo: value?.currentTempo || value?.note || "",
+        ready:
+          value?.ready === true ? true : value?.ready === false ? false : null,
+
+        currentTempo: value?.currentTempo || null,
         goalTempoSnapshot: value?.goalTempo || null,
+
+        teacherNote: value?.note || "",
       })),
     };
 

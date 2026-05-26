@@ -3,6 +3,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { requireRole } from "../middleware/roles.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 import {
+  createLesson,
   upsertLesson,
   getLessonById,
   listLessonsForStudent,
@@ -15,6 +16,7 @@ const router = express.Router();
 
 router.use(requireAuth);
 
+router.post("/", requireRole("teacher", "admin"), createLesson);
 router.put("/", requireRole("teacher", "admin"), upsertLesson);
 router.get(
   "/student/:studentId/latest",

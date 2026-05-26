@@ -27,7 +27,7 @@ const lessonPieceSchema = new mongoose.Schema(
 const lessonScaleItemSchema = new mongoose.Schema(
   {
     scaleId: { type: String, required: true },
-    ready: { type: Boolean, required: true },
+    ready: { type: Boolean, default: null, required: false },
     note: { type: String, default: null, trim: true },
   },
   { _id: false },
