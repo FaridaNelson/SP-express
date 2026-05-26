@@ -79,6 +79,7 @@ function buildScoreEntrySetPayload({
   tempoCurrent,
   tempoGoal,
   pieceCriteria,
+  scalesNotes,
   sightReadingNotes,
   auralTrainingNotes,
 }) {
@@ -209,12 +210,13 @@ function buildScoreEntrySetPayload({
     setPayload.elementType = "scales";
 
     setPayload.notes = {
-      tempoCurrent: tempoCurrent ?? null,
-      tempoGoal: tempoGoal ?? null,
+      items: Object.entries(scalesNotes || {}).map(([scaleId, value]) => ({
+        scaleId,
+        ready: value?.ready === true,
+        currentTempo: value?.currentTempo || value?.note || "",
+        goalTempoSnapshot: value?.goalTempo || null,
+      })),
     };
-
-    setPayload.tempoCurrent = tempoCurrent ?? null;
-    setPayload.tempoGoal = tempoGoal ?? null;
 
     setPayload.aiText = buildAiText({
       instrument: safeInstrument,
@@ -228,6 +230,8 @@ function buildScoreEntrySetPayload({
     unsetPayload.criteria = "";
     unsetPayload.sightReadingNotes = "";
     unsetPayload.auralTrainingNotes = "";
+    unsetPayload.tempoCurrent = "";
+    unsetPayload.tempoGoal = "";
   }
 
   return { setPayload, unsetPayload };
@@ -247,6 +251,7 @@ export async function createScoreEntry(req, res, next) {
       tempoCurrent,
       tempoGoal,
       pieceCriteria,
+      scalesNotes,
       sightReadingNotes,
       auralTrainingNotes,
     } = req.body || {};
@@ -314,6 +319,7 @@ export async function createScoreEntry(req, res, next) {
       sightReadingNotes,
       auralTrainingNotes,
       pieceCriteria,
+      scalesNotes,
     });
 
     const entry = await ScoreEntry.findOneAndUpdate(
