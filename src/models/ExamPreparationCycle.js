@@ -8,8 +8,31 @@ const sectionResultSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const officialPieceResultSchema = new mongoose.Schema(
+  {
+    slot: { type: String, enum: ["A", "B", "C", "D"], required: true },
+    title: { type: String, default: "", trim: true },
+    composer: { type: String, default: "", trim: true },
+    publication: { type: String, default: "", trim: true },
+    mark: { type: Number, default: null },
+    maxMark: { type: Number, default: 30 },
+    examinerComment: { type: String, default: "", trim: true },
+  },
+  { _id: false },
+);
+
+const performanceAsWholeSchema = new mongoose.Schema(
+  {
+    mark: { type: Number, default: null },
+    maxMark: { type: Number, default: 30 },
+    examinerComment: { type: String, default: "", trim: true },
+  },
+  { _id: false },
+);
+
 const completionSchema = new mongoose.Schema(
   {
+    // old fields — keep for backward compatibility
     examTakenAt: { type: Date, default: null },
 
     awardType: {
@@ -33,6 +56,49 @@ const completionSchema = new mongoose.Schema(
       pieceD: { type: sectionResultSchema, default: () => ({}) },
       sightReading: { type: sectionResultSchema, default: () => ({}) },
       auralTraining: { type: sectionResultSchema, default: () => ({}) },
+    },
+
+    // new official ABRSM result fields
+    result: {
+      type: String,
+      enum: ["", "Fail", "Pass", "Merit", "Distinction"],
+      default: "",
+    },
+
+    totalMark: { type: Number, default: null },
+
+    examinerId: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    pieces: {
+      type: [officialPieceResultSchema],
+      default: [],
+    },
+
+    performanceAsWhole: {
+      type: performanceAsWholeSchema,
+      default: () => ({}),
+    },
+
+    pieceScores: {
+      pieceA: { type: Number, default: null },
+      pieceB: { type: Number, default: null },
+      pieceC: { type: Number, default: null },
+      pieceD: { type: Number, default: null },
+    },
+
+    componentScores: {
+      scales: { type: Number, default: null },
+      sightReading: { type: Number, default: null },
+      aural: { type: Number, default: null },
+    },
+    componentComments: {
+      scales: { type: String, default: "", trim: true },
+      sightReading: { type: String, default: "", trim: true },
+      aural: { type: String, default: "", trim: true },
     },
   },
   { _id: false },

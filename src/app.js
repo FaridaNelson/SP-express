@@ -17,6 +17,7 @@ import parentRoutes from "./routes/parent.routes.js";
 import scoreEntryRoutes from "./routes/scoreEntry.routes.js";
 import teacherStudentAccessRoutes from "./routes/teacherStudentAccess.routes.js";
 import studentRoutes from "./routes/student.routes.js";
+import examResultsUploadRoutes from "./routes/examResultsUpload.js";
 import { notFoundHandler, errorHandler } from "./middleware/error.js";
 
 const app = express();
@@ -41,10 +42,13 @@ app.use(
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeadeallowedHeaders: [
+    allowedHeaders: [
       "Content-Type",
       "Authorization",
       "X-CSRF-Token",
+      "CSRF-Token",
+      "csrf-token",
+      "x-csrf-token",
     ],
   }),
 );
@@ -138,6 +142,7 @@ app.use("/api/parent", parentRoutes);
 app.use("/api/score-entries", scoreEntryRoutes);
 app.use("/api/teacher-student-access", teacherStudentAccessRoutes);
 app.use("/api/students", studentRoutes);
+app.use("/api/exam-results", examResultsUploadRoutes);
 app.use(notFoundHandler);
 app.use(errorHandler);
 

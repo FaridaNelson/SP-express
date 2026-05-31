@@ -402,6 +402,7 @@ export async function completeExamCycle(req, res, next) {
       completion = {},
       closingNote = "",
       examTaken = true,
+      examDate,
     } = req.body || {};
 
     const cycle = await getCycleOrThrow(safeCycleId);
@@ -410,6 +411,13 @@ export async function completeExamCycle(req, res, next) {
 
     cycle.status = "completed";
     cycle.examTaken = examTaken;
+    if (examDate !== undefined) {
+      const parsedExamDate = examDate ? normalizeDate(examDate) : null;
+      if (examDate && !parsedExamDate) {
+        return res.status(400).json({ error: "Invalid examDate" });
+      }
+      cycle.examDate = parsedExamDate;
+    }
     cycle.closingNote = normalizeTrimmedString(closingNote);
     cycle.completion = completion;
 
