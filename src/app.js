@@ -18,6 +18,7 @@ import scoreEntryRoutes from "./routes/scoreEntry.routes.js";
 import teacherStudentAccessRoutes from "./routes/teacherStudentAccess.routes.js";
 import studentRoutes from "./routes/student.routes.js";
 import examResultsUploadRoutes from "./routes/examResultsUpload.js";
+import practiceLogRoutes from "./routes/practiceLog.routes.js";
 import { notFoundHandler, errorHandler } from "./middleware/error.js";
 
 const app = express();
@@ -133,8 +134,8 @@ app.get("/api/csrf-token", csrfProtection, (req, res) => {
   res.json({ csrfToken: req.csrfToken() });
 });
 
-app.use("/api/", globalLimiter);
-
+app.use("/api", globalLimiter);
+app.use("/api", practiceLogRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/exam-cycles", examCycleRoutes);
 app.use("/api/lessons", lessonsRoutes);

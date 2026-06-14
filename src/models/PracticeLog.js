@@ -5,6 +5,38 @@ const taskSchema = new mongoose.Schema(
     daysPracticed: { type: Number, default: 0 },
     streak: { type: Number, default: 0 },
     lastPracticedDate: { type: String, default: null }, // "YYYY-MM-DD"
+    totalMinutes: { type: Number, default: 0 },
+  },
+  { _id: false },
+);
+
+const dailyTaskSchema = new mongoose.Schema(
+  {
+    status: {
+      type: String,
+      enum: ["notCovered", "practiced"],
+      default: "notCovered",
+    },
+
+    minutes: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 300,
+    },
+
+    taskOutcome: {
+      type: String,
+      enum: ["none", "needsHelp", "inProgress"],
+      default: "none",
+    },
+
+    note: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 500,
+    },
   },
   { _id: false },
 );
@@ -21,15 +53,28 @@ const practiceLogSchema = new mongoose.Schema(
       ref: "ExamPreparationCycle",
       required: true,
     },
-    loggedBy: {
+    createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
     },
-    loggedByRole: {
+
+    createdByRole: {
       type: String,
       enum: ["parent", "student", "teacher"],
       required: true,
+    },
+
+    lastEditedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    lastEditedByRole: {
+      type: String,
+      enum: ["parent", "student", "teacher"],
+      default: null,
     },
 
     weekStartDate: { type: String, required: true }, // "YYYY-MM-DD" always Sunday
@@ -57,6 +102,22 @@ const practiceLogSchema = new mongoose.Schema(
 
     totalDaysPracticed: { type: Number, default: 0 },
     recordedAt: { type: Date, default: Date.now },
+    tasksByDay: {
+      type: Map,
+      of: new mongoose.Schema(
+        {
+          pieceA: { type: dailyTaskSchema },
+          pieceB: { type: dailyTaskSchema },
+          pieceC: { type: dailyTaskSchema },
+          pieceD: { type: dailyTaskSchema },
+          scales: { type: dailyTaskSchema },
+          sightReading: { type: dailyTaskSchema },
+          auralTraining: { type: dailyTaskSchema },
+        },
+        { _id: false },
+      ),
+      default: {},
+    },
   },
   { timestamps: true },
 );
