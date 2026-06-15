@@ -157,6 +157,17 @@ export async function getPracticeLog(req, res, next) {
     const userId = req.user._id;
     const { examCycleId, weekStartDate } = req.query;
 
+    function normalizeDate(value) {
+      if (typeof value !== "string") return null;
+
+      const trimmed = value.trim();
+
+      // Accept only YYYY-MM-DD
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
+
+      return trimmed;
+    }
+
     if (!examCycleId || !weekStartDate) {
       return res.status(400).json({
         error: "examCycleId and weekStartDate are required",
@@ -165,6 +176,13 @@ export async function getPracticeLog(req, res, next) {
 
     const safeStudentId = validateObjectId(studentId, "studentId");
     const safeExamCycleId = validateObjectId(examCycleId, "examCycleId");
+    const safeWeekStartDate = normalizeDate(weekStartDate);
+
+    if (!safeWeekStartDate) {
+      return res.status(400).json({
+        error: "weekStartDate must be a valid date in YYYY-MM-DD format",
+      });
+    }
 
     const adminBypass =
       Array.isArray(req.user?.roles) && req.user.roles.includes("admin");
@@ -187,7 +205,7 @@ export async function getPracticeLog(req, res, next) {
     const practiceLog = await PracticeLog.findOne({
       studentId: safeStudentId,
       examCycleId: safeExamCycleId,
-      weekStartDate,
+      weekStartDate: safeWeekStartDate,
     }).lean();
 
     return res.json({ practiceLog });
