@@ -47,6 +47,7 @@ export async function upsertPracticeLog(req, res, next) {
       examCycleType,
       homeworkTaskList,
       totalDaysPracticed,
+      tasksByDay,
     } = req.body;
 
     const safeStudentId = validateObjectId(studentId, "studentId");
@@ -99,12 +100,20 @@ export async function upsertPracticeLog(req, res, next) {
       );
     }
 
-    // Determine loggedByRole
-    const loggedByRole = adminBypass ? "parent" : "parent";
+    // Parent dashboard currently writes all practice logs.
+    // Student dashboard will write "student" once implemented.
+    // Teacher role is reserved for future use when teachers can log practice outcomes.
+    function getActorRole(user) {
+      if (user.roles?.includes("teacher")) return "teacher";
+      if (user.roles?.includes("student")) return "student";
+      return "parent";
+    }
+    // Snapshot the role the user is acting as for audit/search context.
+    const actorRole = getActorRole(req.user);
 
     const update = {
-      loggedBy: userId,
-      loggedByRole,
+      lastEditedBy: userId,
+      lastEditedByRole: actorRole,
       weekEndDate,
       weekNumber,
       grade: grade || String(cycle.examGrade),
@@ -113,6 +122,7 @@ export async function upsertPracticeLog(req, res, next) {
       daysToExam,
       homeworkTaskList,
       totalDaysPracticed: totalDaysPracticed || 0,
+      tasksByDay: tasksByDay || {},
       recordedAt: new Date(),
     };
 
@@ -128,10 +138,75 @@ export async function upsertPracticeLog(req, res, next) {
           studentId: safeStudentId,
           examCycleId: safeExamCycleId,
           weekStartDate: safeWeekStartDate,
+          createdBy: userId,
+          createdByRole: actorRole,
         },
       },
       { upsert: true, new: true, runValidators: true },
     );
+
+    return res.json({ practiceLog });
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function getPracticeLog(req, res, next) {
+  try {
+    const studentId = req.params.id;
+    const userId = req.user._id;
+    const { examCycleId, weekStartDate } = req.query;
+
+    function normalizeDate(value) {
+      if (typeof value !== "string") return null;
+
+      const trimmed = value.trim();
+
+      // Accept only YYYY-MM-DD
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
+
+      return trimmed;
+    }
+
+    if (!examCycleId || !weekStartDate) {
+      return res.status(400).json({
+        error: "examCycleId and weekStartDate are required",
+      });
+    }
+
+    const safeStudentId = validateObjectId(studentId, "studentId");
+    const safeExamCycleId = validateObjectId(examCycleId, "examCycleId");
+    const safeWeekStartDate = normalizeDate(weekStartDate);
+
+    if (!safeWeekStartDate) {
+      return res.status(400).json({
+        error: "weekStartDate must be a valid date in YYYY-MM-DD format",
+      });
+    }
+
+    const adminBypass =
+      Array.isArray(req.user?.roles) && req.user.roles.includes("admin");
+
+    const student = await Student.findById(safeStudentId)
+      .select("_id parentIds")
+      .lean();
+
+    if (!student) {
+      return res.status(404).json({ error: "Student not found" });
+    }
+
+    if (
+      !adminBypass &&
+      !student.parentIds?.some((pid) => pid.toString() === userId.toString())
+    ) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const practiceLog = await PracticeLog.findOne({
+      studentId: safeStudentId,
+      examCycleId: safeExamCycleId,
+      weekStartDate: safeWeekStartDate,
+    }).lean();
 
     return res.json({ practiceLog });
   } catch (e) {
