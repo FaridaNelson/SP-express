@@ -53,3 +53,17 @@ Creates or updates the practice log for a student and week.
   }
 }
 ```
+
+## Production Notes
+
+Current production data uses date-keyed tasksByDay records.
+
+Backend normalization must accept:
+
+YYYY-MM-DD
+
+Example:
+
+2026-06-21
+2026-06-22
+2026-06-23
