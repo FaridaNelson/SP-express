@@ -60,3 +60,20 @@ Planned work:
 4. Hydrate saved minutes from backend
 5. Validate minutes range (0–300)
 6. Mobile UI review
+
+## Implementation Notes 6/21/2026
+
+Practice Log stores daily records using date keys:
+
+```js
+{
+  "2026-06-21": {
+    pieceA: {
+      status: "practiced",
+      minutes: 0,
+      taskOutcome: "none",
+      note: ""
+    }
+  }
+}
+```
