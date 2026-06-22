@@ -111,6 +111,84 @@ export async function upsertPracticeLog(req, res, next) {
     // Snapshot the role the user is acting as for audit/search context.
     const actorRole = getActorRole(req.user);
 
+    const VALID_TASK_KEYS = [
+      "pieceA",
+      "pieceB",
+      "pieceC",
+      "pieceD",
+      "scales",
+      "sightReading",
+      "auralTraining",
+    ];
+
+    const VALID_DAYS = [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+    ];
+
+    function normalizeDailyTask(task = {}) {
+      return {
+        status: ["notCovered", "practiced"].includes(task.status)
+          ? task.status
+          : "notCovered",
+
+        minutes:
+          Number.isFinite(Number(task.minutes)) &&
+          Number(task.minutes) >= 0 &&
+          Number(task.minutes) <= 300
+            ? Number(task.minutes)
+            : 0,
+
+        taskOutcome: ["none", "needsHelp", "inProgress"].includes(
+          task.taskOutcome,
+        )
+          ? task.taskOutcome
+          : "none",
+
+        note:
+          typeof task.note === "string" ? task.note.trim().slice(0, 500) : "",
+      };
+    }
+
+    function normalizeTasksByDay(input = {}) {
+      if (!input || typeof input !== "object" || Array.isArray(input)) {
+        return {};
+      }
+
+      const normalized = {};
+
+      for (const day of VALID_DAYS) {
+        const dayTasks = input[day];
+
+        if (
+          !dayTasks ||
+          typeof dayTasks !== "object" ||
+          Array.isArray(dayTasks)
+        ) {
+          continue;
+        }
+
+        normalized[day] = {};
+
+        for (const taskKey of VALID_TASK_KEYS) {
+          if (dayTasks[taskKey]) {
+            normalized[day][taskKey] = normalizeDailyTask(dayTasks[taskKey]);
+          }
+        }
+
+        if (Object.keys(normalized[day]).length === 0) {
+          delete normalized[day];
+        }
+      }
+
+      return normalized;
+    }
+
     const update = {
       lastEditedBy: userId,
       lastEditedByRole: actorRole,
@@ -122,7 +200,7 @@ export async function upsertPracticeLog(req, res, next) {
       daysToExam,
       homeworkTaskList,
       totalDaysPracticed: totalDaysPracticed || 0,
-      tasksByDay: tasksByDay || {},
+      tasksByDay: normalizeTasksByDay(tasksByDay),
       recordedAt: new Date(),
     };
 
