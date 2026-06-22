@@ -131,7 +131,20 @@ export async function upsertPracticeLog(req, res, next) {
       "Saturday",
     ];
 
+    function isValidPracticeDayKey(dayKey) {
+      return /^\d{4}-\d{2}-\d{2}$/.test(dayKey);
+    }
+
     function normalizeDailyTask(task = {}) {
+      if (task === true) {
+        return {
+          status: "practiced",
+          minutes: 0,
+          taskOutcome: "none",
+          note: "",
+        };
+      }
+
       return {
         status: ["notCovered", "practiced"].includes(task.status)
           ? task.status
@@ -162,8 +175,8 @@ export async function upsertPracticeLog(req, res, next) {
 
       const normalized = {};
 
-      for (const day of VALID_DAYS) {
-        const dayTasks = input[day];
+      for (const [day, dayTasks] of Object.entries(input)) {
+        if (!isValidPracticeDayKey(day)) continue;
 
         if (
           !dayTasks ||
