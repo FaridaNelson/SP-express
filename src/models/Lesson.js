@@ -19,6 +19,40 @@ const lessonPieceSchema = new mongoose.Schema(
       required: true,
     },
     percent: { type: Number, min: 0, max: 100, default: 0 },
+
+    tempoNoteValue: {
+      type: String,
+      enum: ["half", "dottedQuarter", "quarter", "eighth"],
+      default: "quarter",
+    },
+
+    goalTempo: {
+      type: Number,
+      min: 0,
+      max: 500,
+      default: null,
+    },
+
+    currentTempo: {
+      type: Number,
+      min: 0,
+      max: 500,
+      default: null,
+    },
+
+    minutesInClass: {
+      type: Number,
+      min: 0,
+      max: 300,
+      default: null,
+    },
+
+    homework: {
+      type: String,
+      default: null,
+      trim: true,
+      maxlength: 1000,
+    },
     criteria: { type: [lessonCriterionSchema], default: [] },
   },
   { _id: false },
