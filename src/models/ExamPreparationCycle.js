@@ -211,6 +211,13 @@ const examPreparationCycleSchema = new mongoose.Schema(
       max: 8,
     },
 
+    cycleSource: {
+      type: String,
+      enum: ["abrsm", "custom"],
+      default: "abrsm",
+      index: true,
+    },
+
     status: {
       type: String,
       enum: ["current", "registered", "completed", "withdrawn"],
