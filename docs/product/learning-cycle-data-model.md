@@ -155,3 +155,15 @@ repertoire: [
 ],
 sourceExamCycleId: "previous ABRSM cycle id"
 }
+
+## Update 2026-06-24:
+
+Lesson documents now store instructional metadata per piece:
+
+- tempo note value
+- target tempo
+- achieved tempo
+- practice time during lesson
+- homework
+
+This separates instructional information from long-term exam preparation data.
