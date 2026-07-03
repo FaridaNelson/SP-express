@@ -638,15 +638,29 @@ export async function listLessonsForStudent(req, res, next) {
       ? parseEnum(instrument, ALLOWED_INSTRUMENTS, "instrument")
       : undefined;
 
-    // Parent ownership guard — parents may only view their own children's lessons
+    // Check access based on role.
+    // Parents have read-only access to lessons for their linked students,
+    // while teachers/admins continue to use instrument-based access control.
     if (req.user.role === "parent") {
       const student = await Student.findById(safeStudentId);
-      if (!student)
+
+      if (!student) {
         return res.status(404).json({ message: "Student not found" });
+      }
+
       const isLinked = student.parentIds?.some(
         (id) => id.toString() === req.user._id.toString(),
       );
-      if (!isLinked) return res.status(403).json({ message: "Access denied" });
+
+      if (!isLinked) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+    } else {
+      if (instrument) {
+        await assertTeacherCanView(req.user._id, safeStudentId, safeInstrument);
+      } else {
+        await assertTeacherHasAnyAccess(req.user._id, safeStudentId);
+      }
     }
 
     if (req.user.role !== "parent") {
@@ -687,11 +701,32 @@ export async function getLatestLessonForStudent(req, res, next) {
       ? parseEnum(instrument, ALLOWED_INSTRUMENTS, "instrument")
       : undefined;
 
-    if (instrument) {
-      parseEnum(instrument, ALLOWED_INSTRUMENTS, "instrument");
-      await assertTeacherCanView(req.user._id, safeStudentId, safeInstrument);
+    const userRoles = Array.isArray(req.user.roles) ? req.user.roles : [];
+    const isParent = userRoles.includes("parent");
+
+    // Check access based on role.
+    // Parents have read-only access to lessons for their linked students,
+    // while teachers/admins continue to use instrument-based access control.
+    if (isParent) {
+      const student = await Student.findById(safeStudentId);
+
+      if (!student) {
+        return res.status(404).json({ message: "Student not found" });
+      }
+
+      const isLinked = student.parentIds?.some(
+        (id) => id.toString() === req.user._id.toString(),
+      );
+
+      if (!isLinked) {
+        return res.status(403).json({ message: "Access denied" });
+      }
     } else {
-      await assertTeacherHasAnyAccess(req.user._id, safeStudentId);
+      if (instrument) {
+        await assertTeacherCanView(req.user._id, safeStudentId, safeInstrument);
+      } else {
+        await assertTeacherHasAnyAccess(req.user._id, safeStudentId);
+      }
     }
 
     const lesson = await Lesson.findOne({
