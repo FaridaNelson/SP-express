@@ -20,7 +20,7 @@ router.post("/", requireRole("teacher", "admin"), createLesson);
 router.put("/", requireRole("teacher", "admin"), upsertLesson);
 router.get(
   "/student/:studentId/latest",
-  requireRole("teacher", "admin"),
+  requireRole("teacher", "admin", "parent"),
   validateObjectId("studentId"),
   getLatestLessonForStudent,
 );
