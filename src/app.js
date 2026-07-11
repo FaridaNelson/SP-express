@@ -19,6 +19,7 @@ import teacherStudentAccessRoutes from "./routes/teacherStudentAccess.routes.js"
 import studentRoutes from "./routes/student.routes.js";
 import examResultsUploadRoutes from "./routes/examResultsUpload.js";
 import practiceLogRoutes from "./routes/practiceLog.routes.js";
+import gameProgressRoutes from "./routes/gameProgress.routes.js";
 import { notFoundHandler, errorHandler } from "./middleware/error.js";
 
 const app = express();
@@ -59,6 +60,26 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 // Sanitize req.body and req.params to strip MongoDB operators ($, .).
 // Express 5 makes req.query read-only so we cannot use mongoSanitize() as
 // middleware directly. Instead we sanitize body/params in-place manually.
+app.use((req, res, next) => {
+  if (
+    req.path.startsWith("/api/game-progress/") &&
+    req.body?.cumulativeStats &&
+    typeof req.body.cumulativeStats === "object" &&
+    !Array.isArray(req.body.cumulativeStats)
+  ) {
+    const unsafeKey = Object.keys(req.body.cumulativeStats).find(
+      (key) => !key || key.startsWith("$") || key.includes("."),
+    );
+
+    if (unsafeKey) {
+      return res
+        .status(400)
+        .json({ error: "cumulativeStats keys cannot begin with $ or contain ." });
+    }
+  }
+
+  return next();
+});
 app.use((req, _res, next) => {
   if (req.body) {
     mongoSanitize.sanitize(req.body);
@@ -144,6 +165,7 @@ app.use("/api/score-entries", scoreEntryRoutes);
 app.use("/api/teacher-student-access", teacherStudentAccessRoutes);
 app.use("/api/students", studentRoutes);
 app.use("/api/exam-results", examResultsUploadRoutes);
+app.use("/api/game-progress", gameProgressRoutes);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
