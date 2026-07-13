@@ -21,6 +21,19 @@ The first implementation is **Note Detective**, a standalone educational game th
 
 ---
 
+# Design Philosophy
+
+StudioPulse provides the educational platform.
+
+Educational applications remain independent products that can:
+
+- run standalone,
+- integrate with StudioPulse,
+- evolve independently,
+- be distributed outside the StudioPulse ecosystem.
+
+StudioPulse provides identity, persistence, and educational analytics rather than owning the implementation of each application.
+
 ---
 
 # Core Principle
@@ -59,58 +72,99 @@ Teacher can view results
 
 # Architectural Decisions
 
-| Component         | Decision                  |
-| ----------------- | ------------------------- |
-| Game architecture | Standalone application    |
-| Integration       | iframe                    |
-| Authentication    | StudioPulse owns auth     |
-| Sync              | postMessage + Backend API |
-| Persistence       | MongoDB                   |
-| Guest storage     | localStorage              |
-| Student storage   | MongoDB                   |
-| Marketplace       | Single-game MVP first     |
+| Component                | Decision                   |
+| ------------------------ | -------------------------- |
+| Educational applications | Independent repositories   |
+| Game architecture        | Standalone web application |
+| Host                     | StudioPulse (`SP-react`)   |
+| Authentication           | StudioPulse owns identity  |
+| Integration              | iframe + postMessage       |
+| Persistence              | GameProgress API           |
+| Student storage          | MongoDB                    |
+| Guest storage            | localStorage               |
 
 ---
 
-# Repository Structure
-
-# Repository Structure
+# System Architecture
 
 ```text
-student-marketplace/
-
-├── README.md
-├── game-progress-schema-v1.md
-├── architecture-decision-record.md
-├── note-detective-integration.md
-├── session-bridge-protocol.md
-├── student-dashboard-spec.md
-└── marketplace-roadmap.md
+Student
+    │
+    ▼
+SP-react
+(Student Dashboard / Host)
+    │
+    │ iframe
+    ▼
+note-detective
+(Standalone Game)
+    │
+    │ postMessage
+    ▼
+SP-react
+(Session Bridge)
+    │
+    │ authenticated API
+    ▼
+SP-express
+(GameProgress API)
+    │
+    ▼
+MongoDB
 ```
+
+The standalone application never communicates directly with the backend.
+All authenticated persistence flows through the StudioPulse host layer.
 
 ---
 
-# Current MVP Scope
+## Current MVP Scope
 
-### Frontend
+### SP-react
 
-- StudentDashboard
+- Student Dashboard
 - Student routing
+- Marketplace
 - NoteDetectiveHost
-- Session bridge
 
-### Backend
+### SP-express
 
 - GameProgress model
-- Game stats API
+- Session API
 - Authorization
 
-### Educational Application
+### note-detective
+
+- Standalone game
+- Guest mode
+- Messaging interface
+
+<!-- ### Educational Application
 
 - Note Detective
 - Guest mode
 - Authenticated mode
-- Teacher analytics
+- Teacher analytics -->
+
+---
+
+# Platform Ownership
+
+## StudioPulse Platform
+
+- authentication
+- student management
+- teacher management
+- parent management
+- analytics
+- GameProgress persistence
+
+## Educational Applications
+
+- Note Detective
+- future educational tools
+
+Educational applications remain independently deployable while integrating with StudioPulse through a documented messaging protocol.
 
 ---
 
@@ -132,13 +186,13 @@ Potential applications include:
 - Theory Quizzes
 - Ear Training
 
-### Interactive Practice
+### Interactive Practice Tools
 
 - Sight Reading Trainer
 - Technical Exercise Trainer
 - Listening Exercises
 
-### AI Experiences
+### AI Learning Experiences
 
 - AI Practice Coach
 - Student Learning Agent
@@ -184,11 +238,26 @@ Potential AI capabilities include:
 
 # Current Development Phase
 
-**Phase:** Architecture & Data Modeling
+**Phase:** Marketplace Foundation
 
-Current priorities:
+### Completed
 
-- Architecture Decision Record
-- GameProgress Schema v1
-- Student Marketplace MVP
-- Note Detective integration
+- Marketplace architecture
+- GameProgress API
+- Student Dashboard
+- Student Marketplace routing
+- Standalone Note Detective repository
+
+### Current
+
+- Note Detective application
+- Host integration
+- Session bridge
+
+---
+
+# Long-Term Vision
+
+The Student Marketplace is designed to support multiple independently developed educational applications that share a common StudioPulse platform for authentication, analytics, persistence, and AI-assisted learning.
+
+As additional applications are introduced, they will integrate through the same host and messaging architecture established by Note Detective.
