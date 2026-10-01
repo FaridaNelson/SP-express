@@ -9,15 +9,21 @@ import {
   createTestStudent,
   fakeId,
 } from "./helpers.js";
+import { createCsrfClient } from "./csrf.js";
 
 describe("Student API", () => {
+  let api;
+
+  beforeEach(async () => {
+    api = await createCsrfClient();
+  });
+
   // ─── POST /api/students ────────────────────────────────────
   describe("POST /api/students", () => {
     it("creates a student with auto-primary access and audit log", async () => {
       const { token, user } = await createTestTeacher();
 
-      const res = await request(app)
-        .post("/api/students")
+      const res = await api.post("/api/students")
         .set("Authorization", `Bearer ${token}`)
         .send({
           firstName: "New",
@@ -35,12 +41,12 @@ describe("Student API", () => {
 
       // verify audit log
       const log = await AuditLog.findOne({ action: "CREATE_STUDENT" });
-      expect(log).toBeDefined();
+      expect(log).not.toBeNull();
       expect(log.actorUserId.toString()).toBe(user._id.toString());
     });
 
     it("rejects unauthenticated request", async () => {
-      const res = await request(app).post("/api/students").send({
+      const res = await api.post("/api/students").send({
         firstName: "No",
         lastName: "Auth",
         instrument: "Piano",
@@ -51,8 +57,7 @@ describe("Student API", () => {
 
     it("rejects student-role user (403)", async () => {
       const { token } = await createTestStudentUser();
-      const res = await request(app)
-        .post("/api/students")
+      const res = await api.post("/api/students")
         .set("Authorization", `Bearer ${token}`)
         .send({
           firstName: "No",
@@ -65,8 +70,7 @@ describe("Student API", () => {
 
     it("rejects parent-role user (403)", async () => {
       const { token } = await (await import("./helpers.js")).createTestParent();
-      const res = await request(app)
-        .post("/api/students")
+      const res = await api.post("/api/students")
         .set("Authorization", `Bearer ${token}`)
         .send({
           firstName: "No",
@@ -79,8 +83,7 @@ describe("Student API", () => {
 
     it("rejects missing firstName", async () => {
       const { token } = await createTestTeacher();
-      const res = await request(app)
-        .post("/api/students")
+      const res = await api.post("/api/students")
         .set("Authorization", `Bearer ${token}`)
         .send({ lastName: "Student", instrument: "Piano", grade: 1 });
       expect(res.status).toBe(400);
@@ -88,8 +91,7 @@ describe("Student API", () => {
 
     it("rejects missing instrument", async () => {
       const { token } = await createTestTeacher();
-      const res = await request(app)
-        .post("/api/students")
+      const res = await api.post("/api/students")
         .set("Authorization", `Bearer ${token}`)
         .send({ firstName: "A", lastName: "B", grade: 1 });
       expect(res.status).toBe(400);
@@ -97,8 +99,7 @@ describe("Student API", () => {
 
     it("rejects missing grade", async () => {
       const { token } = await createTestTeacher();
-      const res = await request(app)
-        .post("/api/students")
+      const res = await api.post("/api/students")
         .set("Authorization", `Bearer ${token}`)
         .send({ firstName: "A", lastName: "B", instrument: "Piano" });
       expect(res.status).toBe(400);
@@ -174,8 +175,7 @@ describe("Student API", () => {
       const { token, user } = await createTestTeacher();
       const student = await createTestStudent(user._id);
 
-      const res = await request(app)
-        .patch(`/api/students/${student._id}`)
+      const res = await api.patch(`/api/students/${student._id}`)
         .set("Authorization", `Bearer ${token}`)
         .send({ firstName: "Updated", grade: 5 });
 
@@ -193,8 +193,7 @@ describe("Student API", () => {
         email: "other2@test.com",
       });
 
-      const res = await request(app)
-        .patch(`/api/students/${student._id}`)
+      const res = await api.patch(`/api/students/${student._id}`)
         .set("Authorization", `Bearer ${otherToken}`)
         .send({ firstName: "Hacked" });
 
@@ -208,14 +207,14 @@ describe("Student API", () => {
       const { token, user } = await createTestTeacher();
       const student = await createTestStudent(user._id);
 
-      const res = await request(app)
-        .delete(`/api/students/${student._id}`)
+      const res = await api.delete(`/api/students/${student._id}`)
         .set("Authorization", `Bearer ${token}`);
 
       expect(res.status).toBe(200);
       expect(res.body.ok).toBe(true);
 
       const archived = await Student.findById(student._id);
+      expect(archived).not.toBeNull();
       expect(archived.status).toBe("archived");
       expect(archived.archivedAt).toBeDefined();
     });
@@ -227,8 +226,7 @@ describe("Student API", () => {
       student.archivedAt = new Date();
       await student.save();
 
-      const res = await request(app)
-        .delete(`/api/students/${student._id}`)
+      const res = await api.delete(`/api/students/${student._id}`)
         .set("Authorization", `Bearer ${token}`);
 
       expect(res.status).toBe(404);

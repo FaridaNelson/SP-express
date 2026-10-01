@@ -9,16 +9,22 @@ import {
   createTestExamCycle,
   fakeId,
 } from "./helpers.js";
+import { createCsrfClient } from "./csrf.js";
 
 describe("Exam Cycle API", () => {
+  let api;
+
+  beforeEach(async () => {
+    api = await createCsrfClient();
+  });
+
   // ─── POST /api/exam-cycles ─────────────────────────────────
   describe("POST /api/exam-cycles", () => {
     it("creates a Practical cycle with correct requiredElements", async () => {
       const { token, user } = await createTestTeacher();
       const student = await createTestStudent(user._id);
 
-      const res = await request(app)
-        .post("/api/exam-cycles")
+      const res = await api.post("/api/exam-cycles")
         .set("Authorization", `Bearer ${token}`)
         .send({
           studentId: student._id.toString(),
@@ -40,6 +46,7 @@ describe("Exam Cycle API", () => {
 
       // verify student's activeExamCycleId was set
       const updated = await Student.findById(student._id);
+      expect(updated).not.toBeNull();
       expect(updated.activeExamCycleId.toString()).toBe(
         res.body.cycle._id.toString(),
       );
@@ -49,8 +56,7 @@ describe("Exam Cycle API", () => {
       const { token, user } = await createTestTeacher();
       const student = await createTestStudent(user._id);
 
-      const res = await request(app)
-        .post("/api/exam-cycles")
+      const res = await api.post("/api/exam-cycles")
         .set("Authorization", `Bearer ${token}`)
         .send({
           studentId: student._id.toString(),
@@ -70,8 +76,7 @@ describe("Exam Cycle API", () => {
 
     it("rejects missing required fields", async () => {
       const { token } = await createTestTeacher();
-      const res = await request(app)
-        .post("/api/exam-cycles")
+      const res = await api.post("/api/exam-cycles")
         .set("Authorization", `Bearer ${token}`)
         .send({ instrument: "Piano" });
 
@@ -86,8 +91,7 @@ describe("Exam Cycle API", () => {
         email: "other-cycle@test.com",
       });
 
-      const res = await request(app)
-        .post("/api/exam-cycles")
+      const res = await api.post("/api/exam-cycles")
         .set("Authorization", `Bearer ${otherToken}`)
         .send({
           studentId: student._id.toString(),
@@ -100,7 +104,7 @@ describe("Exam Cycle API", () => {
     });
 
     it("rejects unauthenticated request", async () => {
-      const res = await request(app).post("/api/exam-cycles").send({
+      const res = await api.post("/api/exam-cycles").send({
         studentId: fakeId(),
         instrument: "Piano",
         examType: "Practical",
@@ -235,8 +239,7 @@ describe("Exam Cycle API", () => {
         activeExamCycleId: cycle._id,
       });
 
-      const res = await request(app)
-        .post(`/api/exam-cycles/${cycle._id}/complete`)
+      const res = await api.post(`/api/exam-cycles/${cycle._id}/complete`)
         .set("Authorization", `Bearer ${token}`)
         .send({ examTaken: true, closingNote: "Well done" });
 
@@ -244,6 +247,7 @@ describe("Exam Cycle API", () => {
       expect(res.body.cycle.status).toBe("completed");
 
       const updated = await Student.findById(student._id);
+      expect(updated).not.toBeNull();
       expect(updated.activeExamCycleId).toBeNull();
     });
   });
@@ -255,8 +259,7 @@ describe("Exam Cycle API", () => {
       const student = await createTestStudent(user._id);
       const cycle = await createTestExamCycle(student._id, user._id);
 
-      const res = await request(app)
-        .post(`/api/exam-cycles/${cycle._id}/withdraw`)
+      const res = await api.post(`/api/exam-cycles/${cycle._id}/withdraw`)
         .set("Authorization", `Bearer ${token}`)
         .send({ withdrawalReason: "Student moved away" });
 
@@ -273,8 +276,7 @@ describe("Exam Cycle API", () => {
       const student = await createTestStudent(user._id);
       const cycle = await createTestExamCycle(student._id, user._id);
 
-      const res = await request(app)
-        .delete(`/api/exam-cycles/${cycle._id}`)
+      const res = await api.delete(`/api/exam-cycles/${cycle._id}`)
         .set("Authorization", `Bearer ${token}`);
 
       expect(res.status).toBe(200);
@@ -286,14 +288,14 @@ describe("Exam Cycle API", () => {
       const student = await createTestStudent(user._id);
       const cycle = await createTestExamCycle(student._id, user._id);
 
-      await request(app)
-        .delete(`/api/exam-cycles/${cycle._id}`)
+      const archiveRes = await api.delete(`/api/exam-cycles/${cycle._id}`)
         .set("Authorization", `Bearer ${token}`);
+      expect(archiveRes.status).toBe(200);
 
       const log = await AuditLog.findOne({
         action: "ARCHIVE_EXAM_CYCLE",
       });
-      expect(log).toBeDefined();
+      expect(log).not.toBeNull();
       expect(log.actorUserId.toString()).toBe(user._id.toString());
     });
   });
@@ -304,8 +306,7 @@ describe("Exam Cycle API", () => {
       const { token, user } = await createTestTeacher();
       const student = await createTestStudent(user._id);
 
-      const res = await request(app)
-        .post("/api/exam-cycles")
+      const res = await api.post("/api/exam-cycles")
         .set("Authorization", `Bearer ${token}`)
         .send({
           studentId: student._id.toString(),
@@ -323,8 +324,7 @@ describe("Exam Cycle API", () => {
       const student = await createTestStudent(user._id);
       const cycle = await createTestExamCycle(student._id, user._id);
 
-      const res = await request(app)
-        .post(`/api/exam-cycles/${cycle._id}/withdraw`)
+      const res = await api.post(`/api/exam-cycles/${cycle._id}/withdraw`)
         .set("Authorization", `Bearer ${token}`)
         .send({ withdrawalReason: "X".repeat(501) });
 
@@ -336,8 +336,7 @@ describe("Exam Cycle API", () => {
       const student = await createTestStudent(user._id);
       const cycle = await createTestExamCycle(student._id, user._id);
 
-      const res = await request(app)
-        .post(`/api/exam-cycles/${cycle._id}/complete`)
+      const res = await api.post(`/api/exam-cycles/${cycle._id}/complete`)
         .set("Authorization", `Bearer ${token}`)
         .send({ closingNote: "X".repeat(1001) });
 

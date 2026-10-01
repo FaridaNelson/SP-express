@@ -8,8 +8,15 @@ import {
   createTestStudent,
   fakeId,
 } from "./helpers.js";
+import { createCsrfClient } from "./csrf.js";
 
 describe("Teacher Student Access API", () => {
+  let api;
+
+  beforeEach(async () => {
+    api = await createCsrfClient();
+  });
+
   // ─── POST /student/:studentId/primary ──────────────────────
   describe("POST /api/teacher-student-access/student/:studentId/primary", () => {
     it("assigns a new primary teacher", async () => {
@@ -20,8 +27,7 @@ describe("Teacher Student Access API", () => {
         email: "teacher2@test.com",
       });
 
-      const res = await request(app)
-        .post(
+      const res = await api.post(
           `/api/teacher-student-access/student/${student._id}/primary`,
         )
         .set("Authorization", `Bearer ${token}`)
@@ -40,7 +46,7 @@ describe("Teacher Student Access API", () => {
         studentId: student._id,
         status: "inactive",
       });
-      expect(oldAccess).toBeDefined();
+      expect(oldAccess).not.toBeNull();
       expect(oldAccess.endedAt).toBeDefined();
     });
 
@@ -56,8 +62,7 @@ describe("Teacher Student Access API", () => {
         email: "teacher3@test.com",
       });
 
-      const res = await request(app)
-        .post(
+      const res = await api.post(
           `/api/teacher-student-access/student/${student._id}/primary`,
         )
         .set("Authorization", `Bearer ${otherToken}`)
@@ -78,8 +83,7 @@ describe("Teacher Student Access API", () => {
         email: "admin-assign@test.com",
       });
 
-      const res = await request(app)
-        .post(
+      const res = await api.post(
           `/api/teacher-student-access/student/${student._id}/primary`,
         )
         .set("Authorization", `Bearer ${adminToken}`)
@@ -93,8 +97,7 @@ describe("Teacher Student Access API", () => {
 
     it("rejects invalid ObjectId", async () => {
       const { token } = await createTestTeacher();
-      const res = await request(app)
-        .post(
+      const res = await api.post(
           `/api/teacher-student-access/student/not-an-id/primary`,
         )
         .set("Authorization", `Bearer ${token}`)
@@ -107,8 +110,7 @@ describe("Teacher Student Access API", () => {
       const { token, user } = await createTestTeacher();
       const student = await createTestStudent(user._id);
 
-      const res = await request(app)
-        .post(
+      const res = await api.post(
           `/api/teacher-student-access/student/${student._id}/primary`,
         )
         .set("Authorization", `Bearer ${token}`)
@@ -121,8 +123,7 @@ describe("Teacher Student Access API", () => {
       const { token, user } = await createTestTeacher();
       const student = await createTestStudent(user._id);
 
-      const res = await request(app)
-        .post(
+      const res = await api.post(
           `/api/teacher-student-access/student/${student._id}/primary`,
         )
         .set("Authorization", `Bearer ${token}`)
@@ -143,8 +144,7 @@ describe("Teacher Student Access API", () => {
         email: "audit-primary@test.com",
       });
 
-      await request(app)
-        .post(
+      const assignRes = await api.post(
           `/api/teacher-student-access/student/${student._id}/primary`,
         )
         .set("Authorization", `Bearer ${token}`)
@@ -152,11 +152,12 @@ describe("Teacher Student Access API", () => {
           teacherId: teacher2._id.toString(),
           instrument: "Piano",
         });
+      expect(assignRes.status).toBe(200);
 
       const log = await AuditLog.findOne({
         action: "ASSIGN_PRIMARY_TEACHER",
       });
-      expect(log).toBeDefined();
+      expect(log).not.toBeNull();
     });
   });
 
@@ -170,8 +171,7 @@ describe("Teacher Student Access API", () => {
         email: "collab@test.com",
       });
 
-      const res = await request(app)
-        .post(
+      const res = await api.post(
           `/api/teacher-student-access/student/${student._id}/access`,
         )
         .set("Authorization", `Bearer ${token}`)
@@ -193,8 +193,7 @@ describe("Teacher Student Access API", () => {
         email: "viewer@test.com",
       });
 
-      const res = await request(app)
-        .post(
+      const res = await api.post(
           `/api/teacher-student-access/student/${student._id}/access`,
         )
         .set("Authorization", `Bearer ${token}`)
@@ -216,8 +215,7 @@ describe("Teacher Student Access API", () => {
         email: "dupe-access@test.com",
       });
 
-      await request(app)
-        .post(
+      const addAccessRes = await api.post(
           `/api/teacher-student-access/student/${student._id}/access`,
         )
         .set("Authorization", `Bearer ${token}`)
@@ -226,9 +224,9 @@ describe("Teacher Student Access API", () => {
           instrument: "Piano",
           role: "collaborator",
         });
+      expect(addAccessRes.status).toBe(201);
 
-      const res = await request(app)
-        .post(
+      const res = await api.post(
           `/api/teacher-student-access/student/${student._id}/access`,
         )
         .set("Authorization", `Bearer ${token}`)
@@ -250,8 +248,7 @@ describe("Teacher Student Access API", () => {
         email: "try-primary@test.com",
       });
 
-      const res = await request(app)
-        .post(
+      const res = await api.post(
           `/api/teacher-student-access/student/${student._id}/access`,
         )
         .set("Authorization", `Bearer ${token}`)
@@ -276,8 +273,7 @@ describe("Teacher Student Access API", () => {
         email: "revoke-target@test.com",
       });
 
-      const addRes = await request(app)
-        .post(
+      const addRes = await api.post(
           `/api/teacher-student-access/student/${student._id}/access`,
         )
         .set("Authorization", `Bearer ${token}`)
@@ -286,11 +282,11 @@ describe("Teacher Student Access API", () => {
           instrument: "Piano",
           role: "collaborator",
         });
+      expect(addRes.status).toBe(201);
 
       const accessId = addRes.body.access._id;
 
-      const res = await request(app)
-        .post(
+      const res = await api.post(
           `/api/teacher-student-access/student/${student._id}/access/${accessId}/revoke`,
         )
         .set("Authorization", `Bearer ${token}`)
@@ -310,9 +306,9 @@ describe("Teacher Student Access API", () => {
         studentId: student._id,
         role: "primary",
       });
+      expect(primaryAccess).not.toBeNull();
 
-      const res = await request(app)
-        .post(
+      const res = await api.post(
           `/api/teacher-student-access/student/${student._id}/access/${primaryAccess._id}/revoke`,
         )
         .set("Authorization", `Bearer ${token}`);
@@ -325,8 +321,7 @@ describe("Teacher Student Access API", () => {
       const { token, user } = await createTestTeacher();
       const student = await createTestStudent(user._id);
 
-      const res = await request(app)
-        .post(
+      const res = await api.post(
           `/api/teacher-student-access/student/${student._id}/access/${fakeId()}/revoke`,
         )
         .set("Authorization", `Bearer ${token}`);

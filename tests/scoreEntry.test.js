@@ -7,11 +7,13 @@ import {
   createTestExamCycle,
   fakeId,
 } from "./helpers.js";
+import { applyCsrf, createCsrfClient, getCsrfCredentials } from "./csrf.js";
 
 describe("Score Entry API", () => {
-  let teacher, token, student, cycle;
+  let teacher, token, student, cycle, api;
 
   beforeEach(async () => {
+    api = await createCsrfClient();
     const t = await createTestTeacher();
     teacher = t.user;
     token = t.token;
@@ -31,7 +33,7 @@ describe("Score Entry API", () => {
   // ─── POST /api/score-entries ───────────────────────────────
   describe("POST /api/score-entries", () => {
     it("creates a score entry", async () => {
-      const res = await request(app)
+      const res = await api
         .post("/api/score-entries")
         .set("Authorization", `Bearer ${token}`)
         .send(validEntry());
@@ -41,19 +43,20 @@ describe("Score Entry API", () => {
       expect(res.body.entry.score).toBe(85);
     });
 
-    it("logs CREATE_SCORE_ENTRY audit event", async () => {
-      await request(app)
+    it("logs UPSERT_SCORE_ENTRY audit event", async () => {
+      const createRes = await api
         .post("/api/score-entries")
         .set("Authorization", `Bearer ${token}`)
         .send(validEntry());
+      expect(createRes.status).toBe(201);
 
-      const log = await AuditLog.findOne({ action: "CREATE_SCORE_ENTRY" });
-      expect(log).toBeDefined();
+      const log = await AuditLog.findOne({ action: "UPSERT_SCORE_ENTRY" });
+      expect(log).not.toBeNull();
       expect(log.metadata.elementId).toBe("pieceA");
     });
 
     it("rejects missing required fields", async () => {
-      const res = await request(app)
+      const res = await api
         .post("/api/score-entries")
         .set("Authorization", `Bearer ${token}`)
         .send({ instrument: "Piano" });
@@ -62,9 +65,7 @@ describe("Score Entry API", () => {
     });
 
     it("rejects unauthenticated request", async () => {
-      const res = await request(app)
-        .post("/api/score-entries")
-        .send(validEntry());
+      const res = await api.post("/api/score-entries").send(validEntry());
       expect(res.status).toBe(401);
     });
 
@@ -73,7 +74,7 @@ describe("Score Entry API", () => {
         email: "no-score-access@test.com",
       });
 
-      const res = await request(app)
+      const res = await api
         .post("/api/score-entries")
         .set("Authorization", `Bearer ${otherToken}`)
         .send(validEntry());
@@ -93,7 +94,7 @@ describe("Score Entry API", () => {
       const entry = validEntry();
       entry.examPreparationCycleId = otherCycle._id.toString();
 
-      const res = await request(app)
+      const res = await api
         .post("/api/score-entries")
         .set("Authorization", `Bearer ${token}`)
         .send(entry);
@@ -105,7 +106,7 @@ describe("Score Entry API", () => {
       const entry = validEntry();
       entry.instrument = "Voice";
 
-      const res = await request(app)
+      const res = await api
         .post("/api/score-entries")
         .set("Authorization", `Bearer ${token}`)
         .send(entry);
@@ -118,7 +119,7 @@ describe("Score Entry API", () => {
       const entry = validEntry();
       entry.lessonDate = "not-a-date";
 
-      const res = await request(app)
+      const res = await api
         .post("/api/score-entries")
         .set("Authorization", `Bearer ${token}`)
         .send(entry);
@@ -135,7 +136,7 @@ describe("Score Entry API", () => {
         articulation: "legato",
       };
 
-      const res = await request(app)
+      const res = await api
         .post("/api/score-entries")
         .set("Authorization", `Bearer ${token}`)
         .send(entry);
@@ -143,6 +144,42 @@ describe("Score Entry API", () => {
       expect(res.status).toBe(201);
       expect(res.body.entry.tempoCurrent).toBe(80);
       expect(res.body.entry.tempoGoal).toBe(120);
+    });
+
+    it("rejects missing CSRF token", async () => {
+      const res = await request(app)
+        .post("/api/score-entries")
+        .set("Cookie", api.credentials.cookie)
+        .set("Authorization", `Bearer ${token}`)
+        .send(validEntry());
+
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe("invalid csrf token");
+    });
+
+    it("rejects invalid CSRF token", async () => {
+      const res = await request(app)
+        .post("/api/score-entries")
+        .set("Cookie", api.credentials.cookie)
+        .set("X-CSRF-Token", "invalid-token")
+        .set("Authorization", `Bearer ${token}`)
+        .send(validEntry());
+
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe("invalid csrf token");
+    });
+
+    it("rejects mismatched CSRF token and cookie", async () => {
+      const otherCredentials = await getCsrfCredentials();
+      const res = await applyCsrf(request(app).post("/api/score-entries"), {
+        token: api.credentials.token,
+        cookie: otherCredentials.cookie,
+      })
+        .set("Authorization", `Bearer ${token}`)
+        .send(validEntry());
+
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe("invalid csrf token");
     });
   });
 });
