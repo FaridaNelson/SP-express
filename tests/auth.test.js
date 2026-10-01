@@ -3,14 +3,26 @@ import app from "../src/app.js";
 import User from "../src/models/User.js";
 import Student from "../src/models/Student.js";
 import { createTestStudent, createTestTeacher, fakeId } from "./helpers.js";
+import { createCsrfClient } from "./csrf.js";
 
 describe("Auth API", () => {
+  let api;
+
+  beforeEach(async () => {
+    api = await createCsrfClient();
+  });
+
+  async function signUp(payload) {
+    const res = await api.post("/api/auth/signup").send(payload);
+    expect(res.status).toBe(201);
+    return res;
+  }
+
   // ─── POST /api/auth/signup ─────────────────────────────────
   describe("POST /api/auth/signup", () => {
     describe("happy path", () => {
       it("registers a teacher with valid fields", async () => {
-        const res = await request(app)
-          .post("/api/auth/signup")
+        const res = await api.post("/api/auth/signup")
           .send({
             firstName: "Jane",
             lastName: "Doe",
@@ -38,7 +50,7 @@ describe("Auth API", () => {
         const { user: teacher } = await createTestTeacher();
         const student = await createTestStudent(teacher._id);
 
-        const res = await request(app).post("/api/auth/signup").send({
+        const res = await api.post("/api/auth/signup").send({
           firstName: "Mom",
           lastName: "Smith",
           email: "mom@example.com",
@@ -58,7 +70,7 @@ describe("Auth API", () => {
       });
 
       it("registers a student with instrument", async () => {
-        const res = await request(app).post("/api/auth/signup").send({
+        const res = await api.post("/api/auth/signup").send({
           firstName: "Kid",
           lastName: "Student",
           email: "kid@example.com",
@@ -75,14 +87,14 @@ describe("Auth API", () => {
 
     describe("validation", () => {
       it("rejects missing required fields", async () => {
-        const res = await request(app).post("/api/auth/signup").send({
+        const res = await api.post("/api/auth/signup").send({
           email: "test@example.com",
         });
         expect(res.status).toBe(400);
       });
 
       it("rejects password shorter than 8 characters", async () => {
-        const res = await request(app).post("/api/auth/signup").send({
+        const res = await api.post("/api/auth/signup").send({
           firstName: "A",
           lastName: "B",
           email: "short@example.com",
@@ -95,7 +107,7 @@ describe("Auth API", () => {
       });
 
       it("rejects duplicate email", async () => {
-        await request(app).post("/api/auth/signup").send({
+        await signUp({
           firstName: "First",
           lastName: "User",
           email: "dupe@example.com",
@@ -104,7 +116,7 @@ describe("Auth API", () => {
           instrument: "Piano",
         });
 
-        const res = await request(app).post("/api/auth/signup").send({
+        const res = await api.post("/api/auth/signup").send({
           firstName: "Second",
           lastName: "User",
           email: "dupe@example.com",
@@ -117,8 +129,7 @@ describe("Auth API", () => {
       });
 
       it("rejects teacher without studioName", async () => {
-        const res = await request(app)
-          .post("/api/auth/signup")
+        const res = await api.post("/api/auth/signup")
           .send({
             firstName: "T",
             lastName: "T",
@@ -133,7 +144,7 @@ describe("Auth API", () => {
       });
 
       it("rejects parent without studentId or inviteCode", async () => {
-        const res = await request(app).post("/api/auth/signup").send({
+        const res = await api.post("/api/auth/signup").send({
           firstName: "P",
           lastName: "P",
           email: "parent-no-link@example.com",
@@ -146,7 +157,7 @@ describe("Auth API", () => {
 
     describe("security", () => {
       it("blocks admin role self-assignment", async () => {
-        const res = await request(app).post("/api/auth/signup").send({
+        const res = await api.post("/api/auth/signup").send({
           firstName: "Evil",
           lastName: "Admin",
           email: "evil@example.com",
@@ -158,8 +169,7 @@ describe("Auth API", () => {
       });
 
       it("blocks admin in roles array", async () => {
-        const res = await request(app)
-          .post("/api/auth/signup")
+        const res = await api.post("/api/auth/signup")
           .send({
             firstName: "Evil",
             lastName: "Admin",
@@ -174,8 +184,7 @@ describe("Auth API", () => {
       });
 
       it("sanitizes NoSQL injection operators in login body", async () => {
-        const res = await request(app)
-          .post("/api/auth/login")
+        const res = await api.post("/api/auth/login")
           .send({
             email: { $gt: "" },
             password: { $gt: "" },
@@ -186,7 +195,7 @@ describe("Auth API", () => {
       });
 
       it("normalizes email to lowercase", async () => {
-        const res = await request(app).post("/api/auth/signup").send({
+        const res = await api.post("/api/auth/signup").send({
           firstName: "Upper",
           lastName: "Case",
           email: "UPPER@EXAMPLE.COM",
@@ -203,7 +212,7 @@ describe("Auth API", () => {
   // ─── POST /api/auth/login ──────────────────────────────────
   describe("POST /api/auth/login", () => {
     it("logs in with valid credentials", async () => {
-      await request(app).post("/api/auth/signup").send({
+      await signUp({
         firstName: "Login",
         lastName: "User",
         email: "login@example.com",
@@ -212,7 +221,7 @@ describe("Auth API", () => {
         instrument: "Piano",
       });
 
-      const res = await request(app).post("/api/auth/login").send({
+      const res = await api.post("/api/auth/login").send({
         email: "login@example.com",
         password: "password123",
       });
@@ -224,7 +233,7 @@ describe("Auth API", () => {
     });
 
     it("rejects wrong password", async () => {
-      await request(app).post("/api/auth/signup").send({
+      await signUp({
         firstName: "Login",
         lastName: "Fail",
         email: "fail@example.com",
@@ -233,7 +242,7 @@ describe("Auth API", () => {
         instrument: "Piano",
       });
 
-      const res = await request(app).post("/api/auth/login").send({
+      const res = await api.post("/api/auth/login").send({
         email: "fail@example.com",
         password: "wrongpassword",
       });
@@ -245,7 +254,7 @@ describe("Auth API", () => {
     });
 
     it("rejects nonexistent email with same error message", async () => {
-      const res = await request(app).post("/api/auth/login").send({
+      const res = await api.post("/api/auth/login").send({
         email: "nonexistent@example.com",
         password: "password123",
       });
@@ -257,7 +266,7 @@ describe("Auth API", () => {
     });
 
     it("rejects missing fields", async () => {
-      const res = await request(app).post("/api/auth/login").send({});
+      const res = await api.post("/api/auth/login").send({});
       expect(res.status).toBe(400);
     });
   });
@@ -265,7 +274,7 @@ describe("Auth API", () => {
   // ─── GET /api/auth/me ──────────────────────────────────────
   describe("GET /api/auth/me", () => {
     it("returns user data for valid token", async () => {
-      const signupRes = await request(app).post("/api/auth/signup").send({
+      const signupRes = await signUp({
         firstName: "Me",
         lastName: "User",
         email: "me@example.com",
@@ -303,7 +312,7 @@ describe("Auth API", () => {
   // ─── POST /api/auth/logout ─────────────────────────────────
   describe("POST /api/auth/logout", () => {
     it("clears the session cookie", async () => {
-      const res = await request(app).post("/api/auth/logout");
+      const res = await api.post("/api/auth/logout");
       expect(res.status).toBe(200);
       expect(res.body.ok).toBe(true);
 

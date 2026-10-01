@@ -2,10 +2,17 @@ import crypto from "node:crypto";
 import request from "supertest";
 import app from "../src/app.js";
 import User from "../src/models/User.js";
+import { createCsrfClient } from "./csrf.js";
 
 describe("Password Reset API", () => {
+  let api;
+
+  beforeEach(async () => {
+    api = await createCsrfClient();
+  });
+
   const signupUser = async (email = "reset@example.com") => {
-    await request(app).post("/api/auth/signup").send({
+    const res = await api.post("/api/auth/signup").send({
       firstName: "Reset",
       lastName: "User",
       email,
@@ -13,6 +20,7 @@ describe("Password Reset API", () => {
       role: "student",
       instrument: "Piano",
     });
+    expect(res.status).toBe(201);
   };
 
   // ─── POST /api/auth/forgot-password ──────────────────────────
@@ -20,8 +28,7 @@ describe("Password Reset API", () => {
     it("returns 200 with message ok for existing email", async () => {
       await signupUser();
 
-      const res = await request(app)
-        .post("/api/auth/forgot-password")
+      const res = await api.post("/api/auth/forgot-password")
         .send({ email: "reset@example.com" });
 
       expect(res.status).toBe(200);
@@ -38,8 +45,7 @@ describe("Password Reset API", () => {
     });
 
     it("returns 200 with message ok for non-existent email", async () => {
-      const res = await request(app)
-        .post("/api/auth/forgot-password")
+      const res = await api.post("/api/auth/forgot-password")
         .send({ email: "nobody@example.com" });
 
       expect(res.status).toBe(200);
@@ -47,8 +53,7 @@ describe("Password Reset API", () => {
     });
 
     it("returns 200 with message ok when email is missing", async () => {
-      const res = await request(app)
-        .post("/api/auth/forgot-password")
+      const res = await api.post("/api/auth/forgot-password")
         .send({});
 
       expect(res.status).toBe(200);
@@ -58,8 +63,7 @@ describe("Password Reset API", () => {
     it("is case-insensitive for email lookup", async () => {
       await signupUser("casetest@example.com");
 
-      const res = await request(app)
-        .post("/api/auth/forgot-password")
+      const res = await api.post("/api/auth/forgot-password")
         .send({ email: "CASETEST@EXAMPLE.COM" });
 
       expect(res.status).toBe(200);
@@ -94,8 +98,7 @@ describe("Password Reset API", () => {
     it("resets password with a valid token", async () => {
       const rawToken = await createResetToken();
 
-      const res = await request(app)
-        .post("/api/auth/reset-password")
+      const res = await api.post("/api/auth/reset-password")
         .send({ token: rawToken, newPassword: "newpass12345" });
 
       expect(res.status).toBe(200);
@@ -107,8 +110,7 @@ describe("Password Reset API", () => {
       expect(user.passwordResetExpires).toBeNull();
 
       // should be able to log in with new password
-      const loginRes = await request(app)
-        .post("/api/auth/login")
+      const loginRes = await api.post("/api/auth/login")
         .send({ email: "reset@example.com", password: "newpass12345" });
       expect(loginRes.status).toBe(200);
       expect(loginRes.body.user.email).toBe("reset@example.com");
@@ -131,8 +133,7 @@ describe("Password Reset API", () => {
         },
       );
 
-      const res = await request(app)
-        .post("/api/auth/reset-password")
+      const res = await api.post("/api/auth/reset-password")
         .send({ token: rawToken, newPassword: "newpass12345" });
 
       expect(res.status).toBe(400);
@@ -140,8 +141,7 @@ describe("Password Reset API", () => {
     });
 
     it("rejects an invalid token", async () => {
-      const res = await request(app)
-        .post("/api/auth/reset-password")
+      const res = await api.post("/api/auth/reset-password")
         .send({ token: "not-a-real-token", newPassword: "newpass12345" });
 
       expect(res.status).toBe(400);
@@ -151,8 +151,7 @@ describe("Password Reset API", () => {
     it("rejects password shorter than 8 characters", async () => {
       const rawToken = await createResetToken("short@example.com");
 
-      const res = await request(app)
-        .post("/api/auth/reset-password")
+      const res = await api.post("/api/auth/reset-password")
         .send({ token: rawToken, newPassword: "short" });
 
       expect(res.status).toBe(400);
@@ -160,8 +159,7 @@ describe("Password Reset API", () => {
     });
 
     it("rejects missing token or password", async () => {
-      const res = await request(app)
-        .post("/api/auth/reset-password")
+      const res = await api.post("/api/auth/reset-password")
         .send({});
 
       expect(res.status).toBe(400);
@@ -171,14 +169,12 @@ describe("Password Reset API", () => {
       const rawToken = await createResetToken("reuse@example.com");
 
       // first reset succeeds
-      const res1 = await request(app)
-        .post("/api/auth/reset-password")
+      const res1 = await api.post("/api/auth/reset-password")
         .send({ token: rawToken, newPassword: "newpass12345" });
       expect(res1.status).toBe(200);
 
       // second reset with same token fails
-      const res2 = await request(app)
-        .post("/api/auth/reset-password")
+      const res2 = await api.post("/api/auth/reset-password")
         .send({ token: rawToken, newPassword: "anotherpass123" });
       expect(res2.status).toBe(400);
       expect(res2.body.error).toBe("Invalid or expired token");

@@ -7,11 +7,13 @@ import {
   createTestExamCycle,
   fakeId,
 } from "./helpers.js";
+import { createCsrfClient } from "./csrf.js";
 
 describe("Lesson API", () => {
-  let teacher, token, student, cycle;
+  let teacher, token, student, cycle, api;
 
   beforeEach(async () => {
+    api = await createCsrfClient();
     const t = await createTestTeacher();
     teacher = t.user;
     token = t.token;
@@ -31,7 +33,7 @@ describe("Lesson API", () => {
   // ─── PUT /api/lessons (upsert) ─────────────────────────────
   describe("PUT /api/lessons", () => {
     it("creates a new lesson", async () => {
-      const res = await request(app)
+      const res = await api
         .put("/api/lessons")
         .set("Authorization", `Bearer ${token}`)
         .send(validLesson());
@@ -43,12 +45,13 @@ describe("Lesson API", () => {
 
     it("upserts (updates) on same key fields", async () => {
       const body = validLesson();
-      await request(app)
+      const firstRes = await api
         .put("/api/lessons")
         .set("Authorization", `Bearer ${token}`)
         .send(body);
+      expect(firstRes.status).toBe(200);
 
-      const res = await request(app)
+      const res = await api
         .put("/api/lessons")
         .set("Authorization", `Bearer ${token}`)
         .send({ ...body, teacherNarrative: "Updated note" });
@@ -62,7 +65,7 @@ describe("Lesson API", () => {
     });
 
     it("rejects missing required fields", async () => {
-      const res = await request(app)
+      const res = await api
         .put("/api/lessons")
         .set("Authorization", `Bearer ${token}`)
         .send({ instrument: "Piano" });
@@ -74,7 +77,7 @@ describe("Lesson API", () => {
       const body = validLesson();
       body.lessonEndAt = "2026-03-20T09:00:00Z"; // before start
 
-      const res = await request(app)
+      const res = await api
         .put("/api/lessons")
         .set("Authorization", `Bearer ${token}`)
         .send(body);
@@ -87,7 +90,7 @@ describe("Lesson API", () => {
       const body = validLesson();
       body.lessonDate = "not-a-date";
 
-      const res = await request(app)
+      const res = await api
         .put("/api/lessons")
         .set("Authorization", `Bearer ${token}`)
         .send(body);
@@ -102,15 +105,12 @@ describe("Lesson API", () => {
       const otherStudent = await createTestStudent(other._id, {
         email: "other-student@test.com",
       });
-      const otherCycle = await createTestExamCycle(
-        otherStudent._id,
-        other._id,
-      );
+      const otherCycle = await createTestExamCycle(otherStudent._id, other._id);
 
       const body = validLesson();
       body.examPreparationCycleId = otherCycle._id.toString();
 
-      const res = await request(app)
+      const res = await api
         .put("/api/lessons")
         .set("Authorization", `Bearer ${token}`)
         .send(body);
@@ -124,7 +124,7 @@ describe("Lesson API", () => {
       const body = validLesson();
       body.instrument = "Guitar";
 
-      const res = await request(app)
+      const res = await api
         .put("/api/lessons")
         .set("Authorization", `Bearer ${token}`)
         .send(body);
@@ -138,7 +138,7 @@ describe("Lesson API", () => {
         email: "no-access-lesson@test.com",
       });
 
-      const res = await request(app)
+      const res = await api
         .put("/api/lessons")
         .set("Authorization", `Bearer ${noAccessToken}`)
         .send(validLesson());
@@ -150,10 +150,11 @@ describe("Lesson API", () => {
   // ─── GET /api/lessons/:lessonId (BOLA) ─────────────────────
   describe("GET /api/lessons/:lessonId", () => {
     it("returns lesson for authorized teacher", async () => {
-      const createRes = await request(app)
+      const createRes = await api
         .put("/api/lessons")
         .set("Authorization", `Bearer ${token}`)
         .send(validLesson());
+      expect(createRes.status).toBe(200);
 
       const lessonId = createRes.body.lesson._id;
 
@@ -166,10 +167,11 @@ describe("Lesson API", () => {
     });
 
     it("returns 404 (not 403) for unauthorized teacher — BOLA", async () => {
-      const createRes = await request(app)
+      const createRes = await api
         .put("/api/lessons")
         .set("Authorization", `Bearer ${token}`)
         .send(validLesson());
+      expect(createRes.status).toBe(200);
 
       const lessonId = createRes.body.lesson._id;
 
@@ -195,10 +197,11 @@ describe("Lesson API", () => {
   // ─── GET /api/lessons/student/:studentId ───────────────────
   describe("GET /api/lessons/student/:studentId", () => {
     it("lists lessons for student", async () => {
-      await request(app)
+      await api
         .put("/api/lessons")
         .set("Authorization", `Bearer ${token}`)
-        .send(validLesson());
+        .send(validLesson())
+        .expect(200);
 
       const res = await request(app)
         .get(`/api/lessons/student/${student._id}`)
@@ -224,7 +227,7 @@ describe("Lesson API", () => {
       });
 
       // 2 lessons for cycleA
-      await request(app)
+      const lessonA1Res = await api
         .put("/api/lessons")
         .set("Authorization", `Bearer ${token}`)
         .send({
@@ -232,7 +235,8 @@ describe("Lesson API", () => {
           examPreparationCycleId: cycleA._id.toString(),
           lessonStartAt: "2026-03-20T10:00:00Z",
         });
-      await request(app)
+      expect(lessonA1Res.status).toBe(200);
+      const lessonA2Res = await api
         .put("/api/lessons")
         .set("Authorization", `Bearer ${token}`)
         .send({
@@ -242,9 +246,10 @@ describe("Lesson API", () => {
           lessonStartAt: "2026-03-21T10:00:00Z",
           lessonEndAt: "2026-03-21T11:00:00Z",
         });
+      expect(lessonA2Res.status).toBe(200);
 
       // 1 lesson for cycleB
-      await request(app)
+      const lessonBRes = await api
         .put("/api/lessons")
         .set("Authorization", `Bearer ${token}`)
         .send({
@@ -254,6 +259,7 @@ describe("Lesson API", () => {
           lessonStartAt: "2026-03-22T10:00:00Z",
           lessonEndAt: "2026-03-22T11:00:00Z",
         });
+      expect(lessonBRes.status).toBe(200);
 
       const res = await request(app)
         .get(`/api/lessons/student/${student._id}?cycleId=${cycleA._id}`)
@@ -276,12 +282,14 @@ describe("Lesson API", () => {
     });
 
     it("excludes archived lessons", async () => {
-      const createRes = await request(app)
+      const createRes = await api
         .put("/api/lessons")
         .set("Authorization", `Bearer ${token}`)
         .send(validLesson());
+      expect(createRes.status).toBe(200);
 
       const lesson = await Lesson.findById(createRes.body.lesson._id);
+      expect(lesson).not.toBeNull();
       lesson.archivedAt = new Date();
       await lesson.save();
 
@@ -308,14 +316,15 @@ describe("Lesson API", () => {
   // ─── DELETE /api/lessons/:lessonId ─────────────────────────
   describe("DELETE /api/lessons/:lessonId", () => {
     it("archives a lesson (soft delete)", async () => {
-      const createRes = await request(app)
+      const createRes = await api
         .put("/api/lessons")
         .set("Authorization", `Bearer ${token}`)
         .send(validLesson());
+      expect(createRes.status).toBe(200);
 
       const lessonId = createRes.body.lesson._id;
 
-      const res = await request(app)
+      const res = await api
         .delete(`/api/lessons/${lessonId}`)
         .set("Authorization", `Bearer ${token}`);
 
@@ -323,6 +332,7 @@ describe("Lesson API", () => {
       expect(res.body.ok).toBe(true);
 
       const archived = await Lesson.findById(lessonId);
+      expect(archived).not.toBeNull();
       expect(archived.archivedAt).toBeDefined();
     });
   });
